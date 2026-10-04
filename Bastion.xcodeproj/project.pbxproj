@@ -1,0 +1,1020 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00E4666A9D2AEE6022889A91 /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A532D63441673454A341EB1B /* XPCProtocol.swift */; };
+		04063C1FA3613C10C80C145F /* HelperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C730187DFF862BE8A75220F9 /* HelperClient.swift */; };
+		0844EB1A22DA6DF73EF4E52C /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE6346F9762A8FE4ADECAC5 /* Profile.swift */; };
+		0ECBE459E0CCBB0311629EDF /* BastionHelper in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 6831EEC50527D84017E68324 /* BastionHelper */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1104E6AAB55A022B928193C1 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09B6D01D737ACD6C2367084B /* Components.swift */; };
+		11475ECA1E27E0DFF75B7EEE /* Advisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F89FAB693E445F4C02BFAB3 /* Advisor.swift */; };
+		127C2F0803D5EF2A09B7DB12 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C27FD8320527EDD7C8B11BD /* SettingsView.swift */; };
+		1820752980F72662EF958364 /* DNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = E29F692107715A1E08C00638 /* DNSCache.swift */; };
+		1BD4699F313244EB7B473B87 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9524616C09B67D0879FC3A2 /* MainView.swift */; };
+		1D3509E132623B46A877EA14 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D92B6DDE73A975A33520FAAC /* NetworkExtension.framework */; };
+		2383AAF0EB972849E3D96654 /* RiskHeuristics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE67CCF9B565E33EF7823D4 /* RiskHeuristics.swift */; };
+		24F365EDB2F9FF5827A2EC41 /* DNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = E29F692107715A1E08C00638 /* DNSCache.swift */; };
+		29C7A97DDED21B7336B17F74 /* LogAndRulesViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BCA380C90E67B74867CAC10 /* LogAndRulesViews.swift */; };
+		2AD997E372B373C444038A3F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C27FD8320527EDD7C8B11BD /* SettingsView.swift */; };
+		3022FE7CED49F58B217C8BB6 /* IntelViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 872D65C1A935E8450CEEE7E4 /* IntelViews.swift */; };
+		31CED7E43B9371476B14A2AF /* PassiveMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF507DF75D531C1431B9891 /* PassiveMonitor.swift */; };
+		3C7F6F0F985F1DDD81A64043 /* LogAndRulesViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BCA380C90E67B74867CAC10 /* LogAndRulesViews.swift */; };
+		407DCA83847CE4DEFA724E46 /* ApprovalPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964CDF78D9AF70B61AD773E4 /* ApprovalPanel.swift */; };
+		4236729C73959B7BEBFCD4E9 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9772A21C92CE1D54E77E2A6 /* Models.swift */; };
+		436C2D7526539A347F165BC3 /* BastionFilter.systemextension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 163F2D4B5CFA2487F7CD75C9 /* BastionFilter.systemextension */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		45C2EDD4EECADFDA6AB14B2F /* FilterClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C94A6D5B9D003CFBAF478960 /* FilterClient.swift */; };
+		4ECC46E0FB78953F0FBBC768 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 223650F2DE73066AEE77614C /* main.swift */; };
+		518FBC1B07A12B1D174D228D /* BastionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CE790E9084080E2D4C9BE3 /* BastionTests.swift */; };
+		53737AECE2CD08C7B4306725 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F53C7DCEA71CC60A6ED3ABF /* Theme.swift */; };
+		56CA9AF37F564D4711F6501E /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC456432C62F98FF50E54C6C /* AppModel.swift */; };
+		597A0D3A09DB4651202A5549 /* BastionHelper in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 6831EEC50527D84017E68324 /* BastionHelper */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5E395976F72B481466EBCFC3 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09B6D01D737ACD6C2367084B /* Components.swift */; };
+		63BF3EBBFC4C1F135E968081 /* BastionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B76C171FA9C520229DBB2E23 /* BastionApp.swift */; };
+		63C2D5694F391D418AF6B002 /* LocalLLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7AF0E4B142AC7CEEBF237BB /* LocalLLM.swift */; };
+		64EAD39BA5AD853D9492D3EB /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9772A21C92CE1D54E77E2A6 /* Models.swift */; };
+		654D1CF0D19078E1060707D9 /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A532D63441673454A341EB1B /* XPCProtocol.swift */; };
+		65F8F23F1239B31AF9A0234A /* Advisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F89FAB693E445F4C02BFAB3 /* Advisor.swift */; };
+		678D6A487CF4181BBC0CFD4F /* PassiveMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF507DF75D531C1431B9891 /* PassiveMonitor.swift */; };
+		69E4D361E2E6A5ED397BD925 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC456432C62F98FF50E54C6C /* AppModel.swift */; };
+		6B06DEDB7586CA2F39BB5FB2 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91E8B9083354E7DF2BA7355B /* Keychain.swift */; };
+		6DDD627F2FE652BBFC142B47 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C09126852FE266E5A92A0CE7 /* Assets.xcassets */; };
+		6FA01DEA3A87971FF31362F1 /* IntelViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 872D65C1A935E8450CEEE7E4 /* IntelViews.swift */; };
+		71CCC4394EBC308852A7A683 /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A532D63441673454A341EB1B /* XPCProtocol.swift */; };
+		7539C3BBD795B7E1ADBB452D /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91E8B9083354E7DF2BA7355B /* Keychain.swift */; };
+		7ADD92947DA8196A2C40D9ED /* DNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = E29F692107715A1E08C00638 /* DNSCache.swift */; };
+		7F4EC97B27BFB909893DBD4F /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F53C7DCEA71CC60A6ED3ABF /* Theme.swift */; };
+		819E8CEB44F2B8FF3E5AB126 /* ConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8378612208A31E3B8B28601 /* ConsoleView.swift */; };
+		84DD90BCF72C44E760BB6EC9 /* PFRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150B4AFB98289C57B2B4601B /* PFRules.swift */; };
+		88E5D8099F419DF8D65AFB3D /* RulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BECBDD40C0C154096F99828 /* RulesView.swift */; };
+		8B44B1AFA61669853102F9CC /* ApprovalPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964CDF78D9AF70B61AD773E4 /* ApprovalPanel.swift */; };
+		8D1FB7A0BDF69D0DFF632571 /* BastionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B76C171FA9C520229DBB2E23 /* BastionApp.swift */; };
+		8F257248D0D803B22982EE25 /* FilterClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C94A6D5B9D003CFBAF478960 /* FilterClient.swift */; };
+		9139999F61FACA92BADF7CEF /* LocalLLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7AF0E4B142AC7CEEBF237BB /* LocalLLM.swift */; };
+		99A54FE6D93B32B46B9C39BF /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9772A21C92CE1D54E77E2A6 /* Models.swift */; };
+		9FCD799A3637AB9E98542E8F /* PolicySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9321A0113C8EF03F9D59F71A /* PolicySync.swift */; };
+		A4B6237783A873277F17FE01 /* FilterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DAD03ADDDB5750DFBB8506D /* FilterService.swift */; };
+		A5D0D78D8B38320C861BD7F5 /* FilterDataProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BE8358C231DBC83A083B1AE /* FilterDataProvider.swift */; };
+		A7DD7177A4E2FBD6AC270A81 /* DNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = E29F692107715A1E08C00638 /* DNSCache.swift */; };
+		AB67FA82361BAED9AE90DFB2 /* com.omarcharrkas.bastion.helper.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 7CBA0238CC1C5C72A52A0A6E /* com.omarcharrkas.bastion.helper.plist */; };
+		B0A863981D24597DD7E571CE /* HelperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C730187DFF862BE8A75220F9 /* HelperClient.swift */; };
+		B3C5D738CED93246ACCA9DA1 /* PaloAlto.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73E50B827216519FEDDB262 /* PaloAlto.swift */; };
+		BC194A47A31BB4B174A5DA12 /* PFRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150B4AFB98289C57B2B4601B /* PFRules.swift */; };
+		C2F08BB7A534D5D6F58CCFAE /* PFRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150B4AFB98289C57B2B4601B /* PFRules.swift */; };
+		C55982B7A3374BFE0C9C4F60 /* PFRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150B4AFB98289C57B2B4601B /* PFRules.swift */; };
+		C707927234A1002F18D11FEB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C09126852FE266E5A92A0CE7 /* Assets.xcassets */; };
+		CBAF1F5638DD60EFDB5463A1 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8896A15320F4AA54B43068E8 /* main.swift */; };
+		D27FC0EE113635F7CEFA115E /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9772A21C92CE1D54E77E2A6 /* Models.swift */; };
+		D2D2391DFA06E438198F0CB8 /* ConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8378612208A31E3B8B28601 /* ConsoleView.swift */; };
+		D81F5BB0B2AF7AB61C507DF3 /* PaloAlto.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73E50B827216519FEDDB262 /* PaloAlto.swift */; };
+		DAC670F74FE66159BEF5C07C /* PolicySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9321A0113C8EF03F9D59F71A /* PolicySync.swift */; };
+		DC9A2B1262F9F30CA0A14FCE /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE6346F9762A8FE4ADECAC5 /* Profile.swift */; };
+		E185A7622A96D87C6115B582 /* ThreatIntel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1865BD1CCCFA56E200629A2E /* ThreatIntel.swift */; };
+		E6F0E66E5421B4910C8D951F /* RulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BECBDD40C0C154096F99828 /* RulesView.swift */; };
+		E75F40BA12EE2664D86C1F0D /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9524616C09B67D0879FC3A2 /* MainView.swift */; };
+		EEE161C2AC2D706F8D574E70 /* RiskHeuristics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE67CCF9B565E33EF7823D4 /* RiskHeuristics.swift */; };
+		F03B08AA723CDB06852F217F /* com.omarcharrkas.bastion.helper.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 7CBA0238CC1C5C72A52A0A6E /* com.omarcharrkas.bastion.helper.plist */; };
+		F0C9FD6407E1642C06AFA271 /* ThreatIntel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1865BD1CCCFA56E200629A2E /* ThreatIntel.swift */; };
+		F20B54D4A0B3C881A34E90EE /* CodeIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B185E57420B59094E06EB290 /* CodeIdentity.swift */; };
+		FEFE4511B85D452E3A143178 /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A532D63441673454A341EB1B /* XPCProtocol.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		5FE63DC115B051F27380A7DE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1C8A18916158AD52708DA9B1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B42B2C94693B9FF703B0722A;
+			remoteInfo = BastionFilter;
+		};
+		908D2F6C24014061CB00D18C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1C8A18916158AD52708DA9B1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE4F4A0EB221E32432525FE3;
+			remoteInfo = BastionHelper;
+		};
+		99609141AD525B4B831ECEE3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1C8A18916158AD52708DA9B1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE4F4A0EB221E32432525FE3;
+			remoteInfo = BastionHelper;
+		};
+		BF7A93323DB9909890BA54BE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1C8A18916158AD52708DA9B1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9B01AECAD5CF01F25EEA8535;
+			remoteInfo = Bastion;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		79131C578F4F60330410DD52 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LaunchDaemons;
+			dstSubfolderSpec = 1;
+			files = (
+				F03B08AA723CDB06852F217F /* com.omarcharrkas.bastion.helper.plist in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A508BF8BB053D2B7D358B306 /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				0ECBE459E0CCBB0311629EDF /* BastionHelper in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ADA3F94367159C3ECACFA092 /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				597A0D3A09DB4651202A5549 /* BastionHelper in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C202CFC50FD8FEAD4EA27CD0 /* Embed System Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(SYSTEM_EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				436C2D7526539A347F165BC3 /* BastionFilter.systemextension in Embed System Extensions */,
+			);
+			name = "Embed System Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EE3C88B5272183D3DB935823 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LaunchDaemons;
+			dstSubfolderSpec = 1;
+			files = (
+				AB67FA82361BAED9AE90DFB2 /* com.omarcharrkas.bastion.helper.plist in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		04CE790E9084080E2D4C9BE3 /* BastionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BastionTests.swift; sourceTree = "<group>"; };
+		09B6D01D737ACD6C2367084B /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		0BECBDD40C0C154096F99828 /* RulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesView.swift; sourceTree = "<group>"; };
+		150B4AFB98289C57B2B4601B /* PFRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PFRules.swift; sourceTree = "<group>"; };
+		163F2D4B5CFA2487F7CD75C9 /* BastionFilter.systemextension */ = {isa = PBXFileReference; explicitFileType = "wrapper.system-extension"; includeInIndex = 0; path = BastionFilter.systemextension; sourceTree = BUILT_PRODUCTS_DIR; };
+		1865BD1CCCFA56E200629A2E /* ThreatIntel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreatIntel.swift; sourceTree = "<group>"; };
+		223650F2DE73066AEE77614C /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		3BE8358C231DBC83A083B1AE /* FilterDataProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterDataProvider.swift; sourceTree = "<group>"; };
+		4BCA380C90E67B74867CAC10 /* LogAndRulesViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogAndRulesViews.swift; sourceTree = "<group>"; };
+		4E7FF34C678C3E56157B4854 /* BastionNE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BastionNE.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		61AA38886226B5B136280D3F /* Bastion.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Bastion.entitlements; sourceTree = "<group>"; };
+		6831EEC50527D84017E68324 /* BastionHelper */ = {isa = PBXFileReference; includeInIndex = 0; path = BastionHelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		6DAD03ADDDB5750DFBB8506D /* FilterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterService.swift; sourceTree = "<group>"; };
+		6F89FAB693E445F4C02BFAB3 /* Advisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Advisor.swift; sourceTree = "<group>"; };
+		70F101751EAE9C989A2E3EA2 /* Bastion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Bastion.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7BE67CCF9B565E33EF7823D4 /* RiskHeuristics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiskHeuristics.swift; sourceTree = "<group>"; };
+		7C27FD8320527EDD7C8B11BD /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		7CBA0238CC1C5C72A52A0A6E /* com.omarcharrkas.bastion.helper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = com.omarcharrkas.bastion.helper.plist; sourceTree = "<group>"; };
+		857A284591D438A09202BBE1 /* BastionTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BastionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		872D65C1A935E8450CEEE7E4 /* IntelViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelViews.swift; sourceTree = "<group>"; };
+		8896A15320F4AA54B43068E8 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		8F2D228AC69D6B141F59B289 /* BastionNE.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BastionNE.entitlements; sourceTree = "<group>"; };
+		91E8B9083354E7DF2BA7355B /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
+		9321A0113C8EF03F9D59F71A /* PolicySync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolicySync.swift; sourceTree = "<group>"; };
+		964CDF78D9AF70B61AD773E4 /* ApprovalPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalPanel.swift; sourceTree = "<group>"; };
+		9F53C7DCEA71CC60A6ED3ABF /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		A3355331274FFCFE3E618927 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		A532D63441673454A341EB1B /* XPCProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XPCProtocol.swift; sourceTree = "<group>"; };
+		AA0E750C56DC6958FF86FBD9 /* Filter.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Filter.entitlements; sourceTree = "<group>"; };
+		AF7DF3513A5FE10472CDD26D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B185E57420B59094E06EB290 /* CodeIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeIdentity.swift; sourceTree = "<group>"; };
+		B73E50B827216519FEDDB262 /* PaloAlto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaloAlto.swift; sourceTree = "<group>"; };
+		B76C171FA9C520229DBB2E23 /* BastionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BastionApp.swift; sourceTree = "<group>"; };
+		B8378612208A31E3B8B28601 /* ConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleView.swift; sourceTree = "<group>"; };
+		C09126852FE266E5A92A0CE7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C730187DFF862BE8A75220F9 /* HelperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelperClient.swift; sourceTree = "<group>"; };
+		C94A6D5B9D003CFBAF478960 /* FilterClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterClient.swift; sourceTree = "<group>"; };
+		C9524616C09B67D0879FC3A2 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		C9772A21C92CE1D54E77E2A6 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		CEE6346F9762A8FE4ADECAC5 /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
+		D92B6DDE73A975A33520FAAC /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = System/Library/Frameworks/NetworkExtension.framework; sourceTree = SDKROOT; };
+		DDF507DF75D531C1431B9891 /* PassiveMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassiveMonitor.swift; sourceTree = "<group>"; };
+		E29F692107715A1E08C00638 /* DNSCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSCache.swift; sourceTree = "<group>"; };
+		E7AF0E4B142AC7CEEBF237BB /* LocalLLM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLLM.swift; sourceTree = "<group>"; };
+		EC456432C62F98FF50E54C6C /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DC5CBA4E089089DEEDD7B2B7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1D3509E132623B46A877EA14 /* NetworkExtension.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2EF5E9CB13E2B84188577BCC /* App */ = {
+			isa = PBXGroup;
+			children = (
+				EC456432C62F98FF50E54C6C /* AppModel.swift */,
+				C09126852FE266E5A92A0CE7 /* Assets.xcassets */,
+				61AA38886226B5B136280D3F /* Bastion.entitlements */,
+				B76C171FA9C520229DBB2E23 /* BastionApp.swift */,
+				8F2D228AC69D6B141F59B289 /* BastionNE.entitlements */,
+				AF7DF3513A5FE10472CDD26D /* Info.plist */,
+				404B994734278C717A62AAEA /* Services */,
+				83FBCE8672F77FC4F039B460 /* UI */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		404B994734278C717A62AAEA /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				6F89FAB693E445F4C02BFAB3 /* Advisor.swift */,
+				C94A6D5B9D003CFBAF478960 /* FilterClient.swift */,
+				C730187DFF862BE8A75220F9 /* HelperClient.swift */,
+				91E8B9083354E7DF2BA7355B /* Keychain.swift */,
+				E7AF0E4B142AC7CEEBF237BB /* LocalLLM.swift */,
+				B73E50B827216519FEDDB262 /* PaloAlto.swift */,
+				DDF507DF75D531C1431B9891 /* PassiveMonitor.swift */,
+				9321A0113C8EF03F9D59F71A /* PolicySync.swift */,
+				CEE6346F9762A8FE4ADECAC5 /* Profile.swift */,
+				7BE67CCF9B565E33EF7823D4 /* RiskHeuristics.swift */,
+				1865BD1CCCFA56E200629A2E /* ThreatIntel.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		45B5652D849D9E8EDC0C993A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D92B6DDE73A975A33520FAAC /* NetworkExtension.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		6B9947C07436ADA63E38E787 /* Filter */ = {
+			isa = PBXGroup;
+			children = (
+				B185E57420B59094E06EB290 /* CodeIdentity.swift */,
+				AA0E750C56DC6958FF86FBD9 /* Filter.entitlements */,
+				3BE8358C231DBC83A083B1AE /* FilterDataProvider.swift */,
+				6DAD03ADDDB5750DFBB8506D /* FilterService.swift */,
+				A3355331274FFCFE3E618927 /* Info.plist */,
+				223650F2DE73066AEE77614C /* main.swift */,
+			);
+			path = Filter;
+			sourceTree = "<group>";
+		};
+		787E983B536C8ABC382AEA23 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				70F101751EAE9C989A2E3EA2 /* Bastion.app */,
+				163F2D4B5CFA2487F7CD75C9 /* BastionFilter.systemextension */,
+				6831EEC50527D84017E68324 /* BastionHelper */,
+				4E7FF34C678C3E56157B4854 /* BastionNE.app */,
+				857A284591D438A09202BBE1 /* BastionTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		83FBCE8672F77FC4F039B460 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				964CDF78D9AF70B61AD773E4 /* ApprovalPanel.swift */,
+				09B6D01D737ACD6C2367084B /* Components.swift */,
+				B8378612208A31E3B8B28601 /* ConsoleView.swift */,
+				872D65C1A935E8450CEEE7E4 /* IntelViews.swift */,
+				4BCA380C90E67B74867CAC10 /* LogAndRulesViews.swift */,
+				C9524616C09B67D0879FC3A2 /* MainView.swift */,
+				0BECBDD40C0C154096F99828 /* RulesView.swift */,
+				7C27FD8320527EDD7C8B11BD /* SettingsView.swift */,
+				9F53C7DCEA71CC60A6ED3ABF /* Theme.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		93DE6427997F2DC36164CB1E = {
+			isa = PBXGroup;
+			children = (
+				2EF5E9CB13E2B84188577BCC /* App */,
+				6B9947C07436ADA63E38E787 /* Filter */,
+				9CAE9D4F4BA7B7FB8C3359CB /* Helper */,
+				A714F55A191B939264F75C8C /* Shared */,
+				C90385394D197D0AD2FDD39D /* Tests */,
+				45B5652D849D9E8EDC0C993A /* Frameworks */,
+				787E983B536C8ABC382AEA23 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		9CAE9D4F4BA7B7FB8C3359CB /* Helper */ = {
+			isa = PBXGroup;
+			children = (
+				7CBA0238CC1C5C72A52A0A6E /* com.omarcharrkas.bastion.helper.plist */,
+				8896A15320F4AA54B43068E8 /* main.swift */,
+			);
+			path = Helper;
+			sourceTree = "<group>";
+		};
+		A714F55A191B939264F75C8C /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				E29F692107715A1E08C00638 /* DNSCache.swift */,
+				C9772A21C92CE1D54E77E2A6 /* Models.swift */,
+				150B4AFB98289C57B2B4601B /* PFRules.swift */,
+				A532D63441673454A341EB1B /* XPCProtocol.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		C90385394D197D0AD2FDD39D /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				04CE790E9084080E2D4C9BE3 /* BastionTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5F792837DF243C41FE83B8FC /* BastionNE */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D7EA66B9CE5D4E089594EB6D /* Build configuration list for PBXNativeTarget "BastionNE" */;
+			buildPhases = (
+				329FE56B3A836952CC1F388D /* Sources */,
+				F1D4D4D6E756C5A83AEA6D23 /* Resources */,
+				79131C578F4F60330410DD52 /* CopyFiles */,
+				C202CFC50FD8FEAD4EA27CD0 /* Embed System Extensions */,
+				ADA3F94367159C3ECACFA092 /* Embed Dependencies */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				19ACF9A1B164EB1AA77A5E4B /* PBXTargetDependency */,
+				627B5E5D29F53889B8487331 /* PBXTargetDependency */,
+			);
+			name = BastionNE;
+			packageProductDependencies = (
+			);
+			productName = BastionNE;
+			productReference = 4E7FF34C678C3E56157B4854 /* BastionNE.app */;
+			productType = "com.apple.product-type.application";
+		};
+		9B01AECAD5CF01F25EEA8535 /* Bastion */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FDB8C28A8DA4C54616D6605A /* Build configuration list for PBXNativeTarget "Bastion" */;
+			buildPhases = (
+				956420FC292537FF660725BA /* Sources */,
+				53978DB1B2F11A1F819B0C56 /* Resources */,
+				EE3C88B5272183D3DB935823 /* CopyFiles */,
+				A508BF8BB053D2B7D358B306 /* Embed Dependencies */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D6559B0B149920F0E3E486AA /* PBXTargetDependency */,
+			);
+			name = Bastion;
+			packageProductDependencies = (
+			);
+			productName = Bastion;
+			productReference = 70F101751EAE9C989A2E3EA2 /* Bastion.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B42B2C94693B9FF703B0722A /* BastionFilter */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1F95DCB5847734714611EE59 /* Build configuration list for PBXNativeTarget "BastionFilter" */;
+			buildPhases = (
+				3045E05EF9564761D22A258E /* Sources */,
+				DC5CBA4E089089DEEDD7B2B7 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BastionFilter;
+			packageProductDependencies = (
+			);
+			productName = BastionFilter;
+			productReference = 163F2D4B5CFA2487F7CD75C9 /* BastionFilter.systemextension */;
+			productType = "com.apple.product-type.system-extension";
+		};
+		BE4F4A0EB221E32432525FE3 /* BastionHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BD098574D46B24F3F08B2D75 /* Build configuration list for PBXNativeTarget "BastionHelper" */;
+			buildPhases = (
+				4B0F41222663B0AB5B3FE43B /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BastionHelper;
+			packageProductDependencies = (
+			);
+			productName = BastionHelper;
+			productReference = 6831EEC50527D84017E68324 /* BastionHelper */;
+			productType = "com.apple.product-type.tool";
+		};
+		D4CDB9F4A7A8061C2AA588D7 /* BastionTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 886F4A90B08FD7E8829150C9 /* Build configuration list for PBXNativeTarget "BastionTests" */;
+			buildPhases = (
+				8F71CA5EAE31A425C1721DE6 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				FF392584938168A1C773C396 /* PBXTargetDependency */,
+			);
+			name = BastionTests;
+			packageProductDependencies = (
+			);
+			productName = BastionTests;
+			productReference = 857A284591D438A09202BBE1 /* BastionTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1C8A18916158AD52708DA9B1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					5F792837DF243C41FE83B8FC = {
+						DevelopmentTeam = 3JG68S88LM;
+						ProvisioningStyle = Automatic;
+					};
+					9B01AECAD5CF01F25EEA8535 = {
+						DevelopmentTeam = 3JG68S88LM;
+						ProvisioningStyle = Automatic;
+					};
+					B42B2C94693B9FF703B0722A = {
+						DevelopmentTeam = 3JG68S88LM;
+						ProvisioningStyle = Automatic;
+					};
+					BE4F4A0EB221E32432525FE3 = {
+						DevelopmentTeam = 3JG68S88LM;
+						ProvisioningStyle = Automatic;
+					};
+					D4CDB9F4A7A8061C2AA588D7 = {
+						DevelopmentTeam = 3JG68S88LM;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = AF11A2B295D3808FB5ED8D04 /* Build configuration list for PBXProject "Bastion" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 93DE6427997F2DC36164CB1E;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 787E983B536C8ABC382AEA23 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9B01AECAD5CF01F25EEA8535 /* Bastion */,
+				BE4F4A0EB221E32432525FE3 /* BastionHelper */,
+				5F792837DF243C41FE83B8FC /* BastionNE */,
+				B42B2C94693B9FF703B0722A /* BastionFilter */,
+				D4CDB9F4A7A8061C2AA588D7 /* BastionTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		53978DB1B2F11A1F819B0C56 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C707927234A1002F18D11FEB /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1D4D4D6E756C5A83AEA6D23 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6DDD627F2FE652BBFC142B47 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3045E05EF9564761D22A258E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F20B54D4A0B3C881A34E90EE /* CodeIdentity.swift in Sources */,
+				24F365EDB2F9FF5827A2EC41 /* DNSCache.swift in Sources */,
+				A5D0D78D8B38320C861BD7F5 /* FilterDataProvider.swift in Sources */,
+				A4B6237783A873277F17FE01 /* FilterService.swift in Sources */,
+				64EAD39BA5AD853D9492D3EB /* Models.swift in Sources */,
+				BC194A47A31BB4B174A5DA12 /* PFRules.swift in Sources */,
+				FEFE4511B85D452E3A143178 /* XPCProtocol.swift in Sources */,
+				4ECC46E0FB78953F0FBBC768 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		329FE56B3A836952CC1F388D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				65F8F23F1239B31AF9A0234A /* Advisor.swift in Sources */,
+				56CA9AF37F564D4711F6501E /* AppModel.swift in Sources */,
+				8B44B1AFA61669853102F9CC /* ApprovalPanel.swift in Sources */,
+				63BF3EBBFC4C1F135E968081 /* BastionApp.swift in Sources */,
+				1104E6AAB55A022B928193C1 /* Components.swift in Sources */,
+				D2D2391DFA06E438198F0CB8 /* ConsoleView.swift in Sources */,
+				A7DD7177A4E2FBD6AC270A81 /* DNSCache.swift in Sources */,
+				8F257248D0D803B22982EE25 /* FilterClient.swift in Sources */,
+				04063C1FA3613C10C80C145F /* HelperClient.swift in Sources */,
+				3022FE7CED49F58B217C8BB6 /* IntelViews.swift in Sources */,
+				7539C3BBD795B7E1ADBB452D /* Keychain.swift in Sources */,
+				9139999F61FACA92BADF7CEF /* LocalLLM.swift in Sources */,
+				29C7A97DDED21B7336B17F74 /* LogAndRulesViews.swift in Sources */,
+				E75F40BA12EE2664D86C1F0D /* MainView.swift in Sources */,
+				D27FC0EE113635F7CEFA115E /* Models.swift in Sources */,
+				C55982B7A3374BFE0C9C4F60 /* PFRules.swift in Sources */,
+				B3C5D738CED93246ACCA9DA1 /* PaloAlto.swift in Sources */,
+				678D6A487CF4181BBC0CFD4F /* PassiveMonitor.swift in Sources */,
+				DAC670F74FE66159BEF5C07C /* PolicySync.swift in Sources */,
+				DC9A2B1262F9F30CA0A14FCE /* Profile.swift in Sources */,
+				EEE161C2AC2D706F8D574E70 /* RiskHeuristics.swift in Sources */,
+				E6F0E66E5421B4910C8D951F /* RulesView.swift in Sources */,
+				127C2F0803D5EF2A09B7DB12 /* SettingsView.swift in Sources */,
+				53737AECE2CD08C7B4306725 /* Theme.swift in Sources */,
+				E185A7622A96D87C6115B582 /* ThreatIntel.swift in Sources */,
+				654D1CF0D19078E1060707D9 /* XPCProtocol.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4B0F41222663B0AB5B3FE43B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1820752980F72662EF958364 /* DNSCache.swift in Sources */,
+				4236729C73959B7BEBFCD4E9 /* Models.swift in Sources */,
+				84DD90BCF72C44E760BB6EC9 /* PFRules.swift in Sources */,
+				00E4666A9D2AEE6022889A91 /* XPCProtocol.swift in Sources */,
+				CBAF1F5638DD60EFDB5463A1 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8F71CA5EAE31A425C1721DE6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				518FBC1B07A12B1D174D228D /* BastionTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		956420FC292537FF660725BA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				11475ECA1E27E0DFF75B7EEE /* Advisor.swift in Sources */,
+				69E4D361E2E6A5ED397BD925 /* AppModel.swift in Sources */,
+				407DCA83847CE4DEFA724E46 /* ApprovalPanel.swift in Sources */,
+				8D1FB7A0BDF69D0DFF632571 /* BastionApp.swift in Sources */,
+				5E395976F72B481466EBCFC3 /* Components.swift in Sources */,
+				819E8CEB44F2B8FF3E5AB126 /* ConsoleView.swift in Sources */,
+				7ADD92947DA8196A2C40D9ED /* DNSCache.swift in Sources */,
+				45C2EDD4EECADFDA6AB14B2F /* FilterClient.swift in Sources */,
+				B0A863981D24597DD7E571CE /* HelperClient.swift in Sources */,
+				6FA01DEA3A87971FF31362F1 /* IntelViews.swift in Sources */,
+				6B06DEDB7586CA2F39BB5FB2 /* Keychain.swift in Sources */,
+				63C2D5694F391D418AF6B002 /* LocalLLM.swift in Sources */,
+				3C7F6F0F985F1DDD81A64043 /* LogAndRulesViews.swift in Sources */,
+				1BD4699F313244EB7B473B87 /* MainView.swift in Sources */,
+				99A54FE6D93B32B46B9C39BF /* Models.swift in Sources */,
+				C2F08BB7A534D5D6F58CCFAE /* PFRules.swift in Sources */,
+				D81F5BB0B2AF7AB61C507DF3 /* PaloAlto.swift in Sources */,
+				31CED7E43B9371476B14A2AF /* PassiveMonitor.swift in Sources */,
+				9FCD799A3637AB9E98542E8F /* PolicySync.swift in Sources */,
+				0844EB1A22DA6DF73EF4E52C /* Profile.swift in Sources */,
+				2383AAF0EB972849E3D96654 /* RiskHeuristics.swift in Sources */,
+				88E5D8099F419DF8D65AFB3D /* RulesView.swift in Sources */,
+				2AD997E372B373C444038A3F /* SettingsView.swift in Sources */,
+				7F4EC97B27BFB909893DBD4F /* Theme.swift in Sources */,
+				F0C9FD6407E1642C06AFA271 /* ThreatIntel.swift in Sources */,
+				71CCC4394EBC308852A7A683 /* XPCProtocol.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		19ACF9A1B164EB1AA77A5E4B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE4F4A0EB221E32432525FE3 /* BastionHelper */;
+			targetProxy = 99609141AD525B4B831ECEE3 /* PBXContainerItemProxy */;
+		};
+		627B5E5D29F53889B8487331 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B42B2C94693B9FF703B0722A /* BastionFilter */;
+			targetProxy = 5FE63DC115B051F27380A7DE /* PBXContainerItemProxy */;
+		};
+		D6559B0B149920F0E3E486AA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE4F4A0EB221E32432525FE3 /* BastionHelper */;
+			targetProxy = 908D2F6C24014061CB00D18C /* PBXContainerItemProxy */;
+		};
+		FF392584938168A1C773C396 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9B01AECAD5CF01F25EEA8535 /* Bastion */;
+			targetProxy = BF7A93323DB9909890BA54BE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0A3E79F5E85DDAA51B85E065 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_CODE_SIGN_FLAGS = "--identifier com.omarcharrkas.bastion.helper";
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.bastion.helper;
+				PRODUCT_NAME = BastionHelper;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		2517612E0CAF13B993F6BE81 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 3JG68S88LM;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		299B244D688AB93C12AC8050 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/BastionNE.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.bastion;
+				PRODUCT_NAME = Bastion;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		41BDD31CA0812BACA8CB4411 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.bastion.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Bastion.app/Contents/MacOS/Bastion";
+			};
+			name = Debug;
+		};
+		45AA3954486DEE8DED3F9870 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.bastion.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Bastion.app/Contents/MacOS/Bastion";
+			};
+			name = Release;
+		};
+		6744ABCC19944806F2B2277C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/Bastion.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.bastion;
+				PRODUCT_NAME = Bastion;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		8751ECEB23ED32E372F46B84 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 3JG68S88LM;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A5900DA57672EC1797CA61D2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Filter/Filter.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Filter/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.bastion.filter;
+				PRODUCT_NAME = com.omarcharrkas.bastion.filter;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		AD119DA7D24AAD80359BF341 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/BastionNE.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.bastion;
+				PRODUCT_NAME = Bastion;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		B67BD46FAF8BD87BE430DD32 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/Bastion.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.bastion;
+				PRODUCT_NAME = Bastion;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		BDA25474759733CF75250ECF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_CODE_SIGN_FLAGS = "--identifier com.omarcharrkas.bastion.helper";
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.bastion.helper;
+				PRODUCT_NAME = BastionHelper;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		CE7A671AE2C194D9B35E1635 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Filter/Filter.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Filter/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.bastion.filter;
+				PRODUCT_NAME = com.omarcharrkas.bastion.filter;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1F95DCB5847734714611EE59 /* Build configuration list for PBXNativeTarget "BastionFilter" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A5900DA57672EC1797CA61D2 /* Debug */,
+				CE7A671AE2C194D9B35E1635 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		886F4A90B08FD7E8829150C9 /* Build configuration list for PBXNativeTarget "BastionTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				41BDD31CA0812BACA8CB4411 /* Debug */,
+				45AA3954486DEE8DED3F9870 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AF11A2B295D3808FB5ED8D04 /* Build configuration list for PBXProject "Bastion" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8751ECEB23ED32E372F46B84 /* Debug */,
+				2517612E0CAF13B993F6BE81 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BD098574D46B24F3F08B2D75 /* Build configuration list for PBXNativeTarget "BastionHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BDA25474759733CF75250ECF /* Debug */,
+				0A3E79F5E85DDAA51B85E065 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D7EA66B9CE5D4E089594EB6D /* Build configuration list for PBXNativeTarget "BastionNE" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				299B244D688AB93C12AC8050 /* Debug */,
+				AD119DA7D24AAD80359BF341 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FDB8C28A8DA4C54616D6605A /* Build configuration list for PBXNativeTarget "Bastion" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B67BD46FAF8BD87BE430DD32 /* Debug */,
+				6744ABCC19944806F2B2277C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 1C8A18916158AD52708DA9B1 /* Project object */;
+}

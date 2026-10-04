@@ -1,0 +1,121 @@
+name: Bastion
+options:
+  bundleIdPrefix: com.omarcharrkas
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: 3JG68S88LM
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+
+# Bastion: app + root pf helper. Signs with any team, including a free Personal Team.
+# BastionNE: the same app plus the per-app Network Extension content filter. Needs a paid Apple Developer
+# Program team (Personal Teams can't get the Network Extension / System Extension capabilities).
+targets:
+  Bastion:
+    type: application
+    platform: macOS
+    sources:
+      - App
+      - Shared
+      - path: Helper/com.omarcharrkas.bastion.helper.plist
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Contents/Library/LaunchDaemons
+    dependencies:
+      - target: BastionHelper
+        embed: true
+        copy:
+          destination: executables
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.bastion
+        PRODUCT_NAME: Bastion
+        INFOPLIST_FILE: App/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: App/Bastion.entitlements
+
+  BastionHelper:
+    type: tool
+    platform: macOS
+    sources: [Helper/main.swift, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.bastion.helper
+        PRODUCT_NAME: BastionHelper
+        GENERATE_INFOPLIST_FILE: YES
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        SKIP_INSTALL: YES
+        OTHER_CODE_SIGN_FLAGS: "--identifier com.omarcharrkas.bastion.helper"
+
+  BastionNE:
+    type: application
+    platform: macOS
+    sources:
+      - App
+      - Shared
+      - path: Helper/com.omarcharrkas.bastion.helper.plist
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Contents/Library/LaunchDaemons
+    dependencies:
+      - target: BastionHelper
+        embed: true
+        copy:
+          destination: executables
+      - target: BastionFilter
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.bastion
+        PRODUCT_NAME: Bastion
+        INFOPLIST_FILE: App/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: App/BastionNE.entitlements
+
+  BastionFilter:
+    type: system-extension
+    platform: macOS
+    sources: [Filter, Shared]
+    dependencies:
+      - sdk: NetworkExtension.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.bastion.filter
+        PRODUCT_NAME: com.omarcharrkas.bastion.filter
+        INFOPLIST_FILE: Filter/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: Filter/Filter.entitlements
+        SKIP_INSTALL: YES
+
+  BastionTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Tests]
+    dependencies:
+      - target: Bastion
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.bastion.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Bastion.app/Contents/MacOS/Bastion"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+schemes:
+  Bastion:
+    build:
+      targets:
+        Bastion: all
+        BastionTests: [test]
+    test:
+      targets: [BastionTests]
+  BastionNE:
+    build:
+      targets:
+        BastionNE: all
