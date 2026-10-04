@@ -73,6 +73,10 @@ enum PFRules {
     func apply(policy: Data, reply: @escaping (String?) -> Void)
     /// Flushes the anchor and releases pf.
     func clear(reply: @escaping (String?) -> Void)
+    /// JSON [ProcInfo] for every process, with arguments (root can read them all).
+    func processes(reply: @escaping (Data) -> Void)
+    /// Kills a process the user chose to stop. Replies nil on success.
+    func terminate(pid: Int32, reply: @escaping (String?) -> Void)
 }
 
 extension BastionIDs {

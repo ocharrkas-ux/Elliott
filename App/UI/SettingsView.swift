@@ -5,6 +5,7 @@ struct SettingsView: View {
         TabView {
             FilterSettings().tabItem { Label("Filter", systemImage: "shield") }
             LLMSettingsView().tabItem { Label("Local LLM", systemImage: "cpu") }
+            EDRSettingsView().tabItem { Label("EDR", systemImage: "exclamationmark.shield") }
             IntelSettingsView().tabItem { Label("Threat Intel", systemImage: "globe.badge.chevron.backward") }
             PaloAltoSettings().tabItem { Label("Palo Alto", systemImage: "flame") }
         }

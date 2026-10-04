@@ -19,6 +19,8 @@ struct Profile: Codable, Identifiable, Hashable {
     var intel: IntelSummary?
     /// What Bastion thinks the user would decide, once it has learned enough.
     var suggestion: Suggestion?
+    /// Open EDR findings on the program behind this connection.
+    var edr: EDRSummary?
 
     var processName: String { (processPath as NSString).lastPathComponent }
     /// The app bundle name for helpers inside an .app ("Google Chrome" for "Google Chrome Helper").
@@ -62,6 +64,11 @@ struct Profile: Codable, Identifiable, Hashable {
                   remotePort: key.direction == .inbound ? 0 : key.port,
                   remoteHostname: key.direction == .inbound ? nil : hostname, outcome: .observed)
     }
+}
+
+struct EDRSummary: Codable, Hashable {
+    var severity: Severity
+    var titles: [String]
 }
 
 struct Analysis: Codable, Hashable {

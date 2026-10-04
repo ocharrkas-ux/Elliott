@@ -1,13 +1,16 @@
 # Bastion
 
-A macOS firewall manager with a local LLM. Bastion:
+A macOS firewall and EDR with a local LLM. Bastion:
 
 * watches every inbound and outbound connection;
 * groups connections into profiles: one app talking to one destination, or one app serving one port;
 * has a small local model describe each profile and rate its risk;
 * lets you allow or deny each one;
 * has a lockdown mode where any new connection waits for your approval;
-* can mirror the rules to a Palo Alto NGFW as shadow security policies.
+* can mirror the rules to a Palo Alto NGFW as shadow security policies;
+* checks destination IPs against threat-intelligence blocklists;
+* learns from your allow/deny decisions and suggests the next ones;
+* watches processes, persistence and security settings for attacker behavior (EDR).
 
 ## Build & run
 ```
@@ -46,6 +49,33 @@ If one app is allowed and another is denied to the same destination, the shadow 
 view lists the conflict. Each sync deletes stale Bastion-tagged rules. By default changes stay in the candidate config;
 you can turn on auto-commit (a partial commit by one admin is recommended). You can also create the rules disabled.
 
+## EDR
+Real-time process events on macOS need Apple's Endpoint Security entitlement (granted only to approved security
+vendors), so Bastion polls instead. Very short-lived processes can slip between polls.
+* **Processes** (every 2 s, each new process is checked once):
+  * unsigned code running from temporary, download or hidden folders;
+  * programs pretending to be macOS components, or whose file was deleted while running;
+  * root processes running from user-writable paths;
+  * known offensive tools, miners and tunnels;
+  * document or mail apps (and browsers) launching shells;
+  * about 20 command-line behaviors, e.g. reverse shells, `curl | sh`, base64-decoded payloads, fake password dialogs,
+    Keychain dumping, quarantine stripping, disabling Gatekeeper or SIP, adding admin users, and miner arguments;
+  * unsigned programs pinning the CPU.
+* **Persistence and posture** (every 5 min):
+  * launch agents and daemons: new items since the baseline, risky program paths, inline scripts;
+  * cron, the login hook, and shell startup files;
+  * SIP, Gatekeeper and FileVault status.
+* **Network**: a connection to a known-bad IP becomes a critical detection on the program that made it, and a
+  program's detections raise the risk of every connection it makes.
+* Each detection carries MITRE ATT&CK IDs.
+* **Triage**: the local LLM triages medium-and-above detections. Its advice is filtered so it never tells you to
+  delete system files.
+* **Responses**:
+  * kill the process (the root helper handles other users' processes);
+  * block the program's network access (not offered for macOS's own binaries);
+  * mark a detection benign, which suppresses that exact behavior from then on.
+* With the pf helper installed, Bastion sees the full command lines of root and other users' processes.
+
 ## Layout
-`Shared/` models, rule matching, pf generation, DNS parsing · `App/` SwiftUI app, LLM, heuristics, nettop
-monitor, PAN-OS client and planner · `Helper/` pf daemon · `Filter/` NE content filter · `Tests/` unit tests.
+`Shared/` models, rule matching, pf generation, DNS parsing, process table · `App/` SwiftUI app, LLM, heuristics,
+nettop monitor, threat intel, advisor, EDR (`App/Services/EDR`), PAN-OS client and planner · `Helper/` pf daemon · `Filter/` NE content filter · `Tests/` unit tests.

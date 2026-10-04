@@ -90,6 +90,27 @@ final class HelperClient: ObservableObject {
         }
     }
 
+    /// Root's view of every process (with arguments), or nil if the helper isn't available.
+    func processes() async -> [ProcInfo]? {
+        guard connected, connection != nil else { return nil }
+        let data: Data? = await withCheckedContinuation { cont in
+            let once = Once<Data?>(cont)
+            let proxy = connection?.remoteObjectProxyWithErrorHandler { _ in once.resume(nil) } as? HelperXPC
+            guard let proxy else { return once.resume(nil) }
+            proxy.processes { once.resume($0) }
+        }
+        return data.flatMap { try? JSONDecoder.bastion.decode([ProcInfo].self, from: $0) }
+    }
+
+    func terminate(pid: Int32) async -> String? {
+        guard connection != nil else { return "helper not connected" }
+        return await withCheckedContinuation { cont in
+            let once = Once<String?>(cont)
+            let proxy = connection?.remoteObjectProxyWithErrorHandler { e in once.resume(e.localizedDescription) } as? HelperXPC
+            proxy?.terminate(pid: pid) { once.resume($0) }
+        }
+    }
+
     func clear() async -> String? {
         guard connection != nil else { return nil }
         return await withCheckedContinuation { cont in

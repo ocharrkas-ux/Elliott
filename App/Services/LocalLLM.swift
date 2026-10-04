@@ -74,6 +74,9 @@ struct LocalLLM {
         } else if p.intel != nil {
             lines.append("Threat intelligence on the remote IP: not on any blocklist")
         }
+        if let edr = p.edr {
+            lines.append("EDR alerts on this program (\(edr.severity.label)): " + edr.titles.joined(separator: "; "))
+        }
         let content = try await complete(system: Self.system, user: lines.joined(separator: "\n"), schema: Self.schema)
         return try Self.decode(content, model: settings.model)
     }

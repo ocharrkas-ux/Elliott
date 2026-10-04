@@ -11,6 +11,7 @@ struct AppSettings: Codable, Equatable {
     var pan = PANSettings()
     var intel = IntelSettings()
     var suggestionsEnabled = true
+    var edr = EDRSettings()
 
     init() {}
 
@@ -25,6 +26,7 @@ struct AppSettings: Codable, Equatable {
         pan = try c.decodeIfPresent(PANSettings.self, forKey: .pan) ?? d.pan
         intel = try c.decodeIfPresent(IntelSettings.self, forKey: .intel) ?? d.intel
         suggestionsEnabled = try c.decodeIfPresent(Bool.self, forKey: .suggestionsEnabled) ?? d.suggestionsEnabled
+        edr = try c.decodeIfPresent(EDRSettings.self, forKey: .edr) ?? d.edr
     }
 }
 
@@ -54,7 +56,12 @@ final class AppModel: ObservableObject {
     @Published private(set) var decisions: [Decision] = []
     @Published private(set) var intel: [String: IPIntel] = [:]
     @Published private(set) var intelRefreshing = false
-    @Published private(set) var intelRevision = 0   // bumps when feeds reload, for the settings view
+    @Published private(set) var intelRevision = 0
+    @Published var section: MainSection = .console
+    @Published private(set) var findings: [Finding] = []
+    @Published private(set) var processes: [ProcInfo] = []
+    @Published private(set) var launchItems: [LaunchItem] = []
+    @Published private(set) var triagingID: UUID?   // bumps when feeds reload, for the settings view
     @Published private(set) var llmStatus = "Waiting for connections"
     @Published private(set) var syncReport: SyncReport?
     @Published private(set) var syncing = false
@@ -72,6 +79,9 @@ final class AppModel: ObservableObject {
     private var onlineTask: Task<Void, Never>?
     private var notifiedBad: Set<String> = []
     private(set) lazy var threatIntel = ThreatIntel(directory: dir)
+    let edr = EDRMonitor()
+    private var triageQueue: [UUID] = []
+    private var edrBaseline: [String] = []
     private var analysisTask: Task<Void, Never>?
     private var saveTask: Task<Void, Never>?
     private var syncTask: Task<Void, Never>?
@@ -119,6 +129,7 @@ final class AppModel: ObservableObject {
             Task { await self?.refreshIntel() }
         }.store(in: &bag)
         Task { await refreshIntel() }
+        startEDR()
 
         if hasFilterExtension { Task { await filter.refresh() } }
         helper.start()
@@ -357,6 +368,10 @@ final class AppModel: ObservableObject {
             analysisFailures.removeAll(); pumpAnalysis()
         }
         if settings.intel != old.intel { Task { await refreshIntel() } }
+        if settings.edr != old.edr {
+            edr.minerDetection = settings.edr.minerDetection
+            if settings.edr.enabled { edr.start() } else { edr.stop() }
+        }
         scheduleSave()
     }
 
@@ -368,10 +383,15 @@ final class AppModel: ObservableObject {
         pumpAnalysis()
     }
 
-    private enum Job { case analyze(String), suggest(String) }
+    private enum Job { case analyze(String), suggest(String), triage(UUID) }
 
     /// Analysis first (it feeds suggestions), then suggestions for unclassified connections.
     private func nextJob() -> Job? {
+        // Serious detections first: someone may be waiting to decide whether to kill something.
+        while let id = triageQueue.first {
+            triageQueue.removeFirst()
+            if let f = findings.first(where: { $0.id == id }), f.triage == nil, f.status == .open { return .triage(id) }
+        }
         if !analysisQueue.isEmpty { return .analyze(analysisQueue.removeFirst()) }
         if suggestQueue.isEmpty { refillSuggestions() }
         while !suggestQueue.isEmpty {
@@ -385,10 +405,15 @@ final class AppModel: ObservableObject {
         guard analysisTask == nil, settings.llm.enabled else { return }
         analysisTask = Task { [weak self] in
             while let self, self.settings.llm.enabled, let job = self.nextJob() {
+                if case .triage(let fid) = job {
+                    await self.runTriage(fid)
+                    continue
+                }
                 let id: String, failKey: String
                 switch job {
                 case .analyze(let i): id = i; failKey = i
                 case .suggest(let i): id = i; failKey = "s:" + i
+                case .triage: continue
                 }
                 guard let p = self.profiles[id] else { continue }
                 do {
@@ -399,6 +424,7 @@ final class AppModel: ObservableObject {
                         let a = try await LocalLLM(settings: self.settings.llm).analyze(p)
                         self.profiles[id]?.analysis = a
                         self.llmStatus = "\(self.analyzedCount) of \(self.profiles.count) connections analyzed"
+                    case .triage: break
                     case .suggest:
                         self.suggestingID = id
                         self.llmStatus = "Predicting your call on \(p.appName) → \(p.destination)"
@@ -510,7 +536,10 @@ final class AppModel: ObservableObject {
             guard summary != p.intel else { continue }
             let wasBad = p.intel?.reputation == .knownBad
             profiles[id]?.intel = summary
-            if summary.reputation == .knownBad && !wasBad { knownBadSeen(profiles[id]!) }
+            if summary.reputation == .knownBad && !wasBad {
+                knownBadSeen(profiles[id]!)
+                c2Finding(profiles[id]!)
+            }
         }
         scheduleSave()
     }
@@ -562,6 +591,167 @@ final class AppModel: ObservableObject {
         }
     }
 
+    // MARK: EDR
+
+    var openFindings: [Finding] { findings.filter { $0.status == .open } }
+    var openFindingCount: Int { openFindings.count }
+    var openSeriousCount: Int { openFindings.filter { $0.severity >= .high }.count }
+
+    func findings(forPath path: String) -> [Finding] {
+        findings.filter { $0.path == path && $0.status != .benign }.sorted { $0.severity > $1.severity }
+    }
+
+    private func startEDR() {
+        edr.baseline = Set(edrBaseline)
+        edr.minerDetection = settings.edr.minerDetection
+        edr.fetch = { [weak self] in
+            // Root's view (complete command lines) when the helper is installed.
+            if let procs = await self?.helper.processes(), !procs.isEmpty { return procs }
+            return ProcessTable.snapshot(withArgs: true)
+        }
+        edr.onObservations = { [weak self] obs in Task { @MainActor in self?.observe(obs) } }
+        edr.onProcesses = { [weak self] procs in Task { @MainActor in self?.processes = procs } }
+        edr.onLaunchItems = { [weak self] items, baseline in
+            Task { @MainActor in
+                guard let self else { return }
+                self.launchItems = items
+                self.edrBaseline = baseline.sorted()
+                self.scheduleSave()
+            }
+        }
+        if settings.edr.enabled { edr.start() }
+        // Anything left untriaged last time (e.g. the app quit mid-queue).
+        triageQueue = findings.filter { $0.status == .open && $0.triage == nil && $0.severity >= .medium }
+            .sorted { $0.severity > $1.severity }.map(\.id)
+    }
+
+    private func observe(_ obs: [Observation]) {
+        var touchedPaths: Set<String> = []
+        for o in obs {
+            if let i = findings.firstIndex(where: { $0.key == o.key }) {
+                findings[i].lastSeen = Date()
+                findings[i].count += 1
+                if let p = o.process { findings[i].pid = p.pid }
+                continue
+            }
+            var f = Finding(key: o.key, rule: o.draft.rule, title: o.draft.title, detail: o.draft.detail,
+                            severity: o.draft.severity, category: o.draft.category, mitre: o.draft.mitre,
+                            path: o.path, pid: o.process?.pid, commandLine: o.process?.commandLine,
+                            user: o.process.map { ProcessTable.userName($0.uid) },
+                            chain: o.chain.map { "\($0.displayName) (\($0.pid))" }, evidence: o.draft.evidence)
+            if let p = o.process {
+                f.evidence.insert("pid \(p.pid), started \(p.start.formatted(date: .abbreviated, time: .standard))", at: 0)
+            }
+            findings.append(f)
+            if let path = f.path { touchedPaths.insert(path) }
+            if f.severity >= .medium { triageQueue.append(f.id) }
+            if f.severity >= settings.edr.notifyAt { notify(f) }
+        }
+        if findings.count > 3000 {
+            findings.removeFirst(findings.count - 3000)
+        }
+        triageQueue.sort { a, b in
+            (findings.first { $0.id == a }?.severity ?? .info) > (findings.first { $0.id == b }?.severity ?? .info)
+        }
+        refreshProfileEDR(touchedPaths)
+        scheduleSave()
+        pumpAnalysis()
+    }
+
+    /// A known-bad destination is also a process-level detection.
+    private func c2Finding(_ p: Profile) {
+        let hits = p.intel?.hits.filter { $0.severity == .knownBad }.map { "\($0.source): \($0.detail)" } ?? []
+        observe([Observation(
+            key: "net.c2|\(p.processPath)|\(p.key.host)",
+            draft: Draft(rule: "net.c2", title: "Connection to a known-bad IP",
+                         detail: "\(p.appName) connected to \(p.destination), which threat intelligence lists as malicious.",
+                         severity: .critical, category: .network, mitre: ["T1071"], evidence: hits + p.addresses.prefix(4).map { "remote \($0)" }),
+            path: p.processPath)])
+    }
+
+    /// Mirrors open findings onto the connections made by the same program.
+    private func refreshProfileEDR(_ paths: Set<String>? = nil) {
+        for (id, p) in profiles where paths == nil || paths!.contains(p.processPath) {
+            let fs = findings.filter { $0.path == p.processPath && $0.status == .open && $0.severity >= .medium }
+            let summary = fs.isEmpty ? nil : EDRSummary(severity: fs.map(\.severity).max()!, titles: fs.map(\.title))
+            if summary != p.edr { profiles[id]?.edr = summary }
+        }
+    }
+
+    private func runTriage(_ fid: UUID) async {
+        guard let f = findings.first(where: { $0.id == fid }) else { return }
+        triagingID = fid
+        llmStatus = "Triaging: \(f.title)"
+        let sig = f.path.map { edr.identity($0).label } ?? "n/a"
+        let net = profiles.values.filter { $0.processPath == f.path }
+            .map { "\($0.destination)\($0.intel.map { $0.reputation >= .suspicious ? " [\($0.reputation.label)]" : "" } ?? "")" }
+        do {
+            let t = try await TriageLLM.triage(f, signature: sig, network: net, llm: LocalLLM(settings: settings.llm))
+            if let i = findings.firstIndex(where: { $0.id == fid }) { findings[i].triage = t }
+            llmStatus = "Triaged \(f.target): \(t.assessment)"
+            scheduleSave()
+        } catch {
+            llmStatus = "Triage failed: \(error.localizedDescription)"
+        }
+        triagingID = nil
+    }
+
+    func retriage(_ ids: [UUID]) {
+        for id in ids { if let i = findings.firstIndex(where: { $0.id == id }) { findings[i].triage = nil } }
+        triageQueue.insert(contentsOf: ids, at: 0)
+        pumpAnalysis()
+    }
+
+    func setStatus(_ ids: Set<UUID>, _ status: FindingStatus) {
+        var paths: Set<String> = []
+        for i in findings.indices where ids.contains(findings[i].id) {
+            findings[i].status = status
+            if let p = findings[i].path { paths.insert(p) }
+        }
+        refreshProfileEDR(paths)
+        scheduleSave()
+    }
+
+    /// Kills the process behind a finding: directly for the user's own processes, through the helper otherwise.
+    func kill(_ f: Finding) async -> String? {
+        guard let pid = f.pid, pid > 1 else { return "No process id recorded." }
+        guard let current = ProcessTable.path(pid), current == f.path else {
+            return "Process \(pid) has already exited (or the id now belongs to another program)."
+        }
+        if Darwin.kill(pid, SIGKILL) == 0 { return nil }
+        if helper.connected { return await helper.terminate(pid: pid) }
+        return "Permission denied. Install the packet filter helper to stop processes owned by other users."
+    }
+
+    /// Denies all network access for the program behind a finding.
+    func blockNetwork(_ f: Finding) {
+        guard let path = f.path else { return }
+        let id = edr.identity(path)
+        let probe = FlowEvent(pid: 0, processPath: path, signingID: id.signingID, teamID: id.teamID, appleSigned: id.appleSigned,
+                              direction: .outbound, proto: .tcp, remoteAddress: "", remotePort: 0, outcome: .observed)
+        for dir in Direction.allCases {
+            var r = Rule(appKey: probe.appKey, appName: (path as NSString).lastPathComponent, direction: dir, proto: nil,
+                         host: "*", port: nil, verdict: .deny,
+                         addresses: profiles.values.filter { $0.processPath == path && $0.key.direction == dir }.flatMap(\.addresses))
+            r.note = "Blocked from EDR: \(f.title)"
+            rules.removeAll { $0.appKey == r.appKey && $0.direction == dir && $0.host == "*" && $0.port == nil && $0.proto == nil }
+            rules.append(r)
+        }
+        rulesChanged()
+    }
+
+    private func notify(_ f: Finding) {
+        let content = UNMutableNotificationContent()
+        content.title = "\(f.severity.label): \(f.title)"
+        content.body = [f.target, f.detail].joined(separator: " — ")
+        content.sound = f.severity >= .high ? .defaultCritical : .default
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            center.add(UNNotificationRequest(identifier: f.id.uuidString, content: content, trigger: nil))
+        }
+    }
+
     // MARK: Palo Alto
 
     var panClient: PANClient { PANClient(settings: settings.pan, key: panKey) }
@@ -604,6 +794,8 @@ final class AppModel: ObservableObject {
         var settings: AppSettings
         var decisions: [Decision]?
         var intel: [IPIntel]?
+        var findings: [Finding]?
+        var edrBaseline: [String]?
     }
 
     private var stateURL: URL { dir.appendingPathComponent("state.json") }
@@ -615,6 +807,8 @@ final class AppModel: ObservableObject {
         rules = s.rules
         settings = s.settings
         decisions = s.decisions ?? []
+        findings = s.findings ?? []
+        edrBaseline = s.edrBaseline ?? []
         // Intel older than a week is re-checked from scratch.
         intel = Dictionary((s.intel ?? []).filter { Date().timeIntervalSince($0.checked) < 7 * 86400 }.map { ($0.ip, $0) },
                            uniquingKeysWith: { a, _ in a })
@@ -626,7 +820,8 @@ final class AppModel: ObservableObject {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             let saved = Saved(profiles: Array(profiles.values), rules: rules, settings: settings,
-                              decisions: decisions, intel: Array(intel.values))
+                              decisions: decisions, intel: Array(intel.values),
+                              findings: findings, edrBaseline: edrBaseline)
             if let data = try? JSONEncoder.bastion.encode(saved) { try? data.write(to: stateURL, options: .atomic) }
         }
     }

@@ -50,6 +50,11 @@ enum RiskHeuristics {
             }
         }
 
+        if let edr = p.edr {
+            let bump = [Severity.critical: 40, .high: 25, .medium: 10][edr.severity] ?? 0
+            if bump > 0 { add(bump, "EDR: the program behind it is flagged (\(edr.titles.prefix(2).joined(separator: "; ")))") }
+        }
+
         if p.key.direction == .inbound {
             add(15, "Accepts inbound connections on port \(port)")
             if p.addresses.contains(where: { !isPrivate($0) }) { add(15, "Inbound peers from the public internet") }

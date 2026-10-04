@@ -49,6 +49,16 @@ final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
         }
     }
 
+    func processes(reply: @escaping (Data) -> Void) {
+        reply((try? JSONEncoder.bastion.encode(ProcessTable.snapshot(withArgs: true))) ?? Data("[]".utf8))
+    }
+
+    func terminate(pid: Int32, reply: @escaping (String?) -> Void) {
+        // Never launchd, the kernel, or ourselves.
+        guard pid > 1, pid != getpid() else { return reply("refusing to kill pid \(pid)") }
+        reply(kill(pid, SIGKILL) == 0 ? nil : String(cString: strerror(errno)))
+    }
+
     private func applyNow(_ data: Data) -> String? {
         guard let policy = try? JSONDecoder.bastion.decode(FilterPolicy.self, from: data) else { return "bad policy" }
         let rules = PFRules.generate(policy)

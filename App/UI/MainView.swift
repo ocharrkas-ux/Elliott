@@ -1,28 +1,28 @@
 import SwiftUI
 
-struct MainView: View {
-    enum Section: String, CaseIterable, Identifiable {
-        case console = "connections", log = "live.log", rules = "rules", firewall = "palo_alto.sync"
-        var id: String { rawValue }
-        var icon: String {
-            switch self {
-            case .console: "network"
-            case .log: "list.bullet.rectangle"
-            case .rules: "checklist"
-            case .firewall: "flame"
-            }
+enum MainSection: String, CaseIterable, Identifiable {
+    case console = "connections", detections = "detections", log = "live.log", rules = "rules", firewall = "palo_alto.sync"
+    var id: String { rawValue }
+    var icon: String {
+        switch self {
+        case .console: "network"
+        case .detections: "exclamationmark.shield"
+        case .log: "list.bullet.rectangle"
+        case .rules: "checklist"
+        case .firewall: "flame"
         }
     }
+}
 
+struct MainView: View {
     @EnvironmentObject var model: AppModel
-    @State private var section: Section = .console
     @State private var confirmLockdown = false
 
     var body: some View {
         NavigationSplitView {
-            List(Section.allCases, selection: $section) { s in
+            List(MainSection.allCases, selection: $model.section) { s in
                 Label(s.rawValue, systemImage: s.icon).tag(s)
-                    .badge(s == .rules ? model.rules.count : 0)
+                    .badge(s == .rules ? model.rules.count : s == .detections ? model.openFindingCount : 0)
             }
             .navigationSplitViewColumnWidth(230)
             .safeAreaInset(edge: .top) {
@@ -36,8 +36,9 @@ struct MainView: View {
             .safeAreaInset(edge: .bottom) { StatusPanel().padding(10) }
             .overlay(Scanlines())
         } detail: {
-            switch section {
+            switch model.section {
             case .console: ConsoleView()
+            case .detections: DetectionsView()
             case .log: LogView()
             case .rules: RulesView()
             case .firewall: FirewallView()
@@ -74,6 +75,9 @@ struct StatusPanel: View {
                 Text("profiled \(model.analyzedCount)/\(model.profiles.count)")
             }
             Text("\(model.unclassifiedCount) unclassified").foregroundStyle(model.unclassifiedCount > 0 ? Theme.red : Theme.dim)
+            Text("edr: \(model.openFindingCount) open\(model.openSeriousCount > 0 ? " (\(model.openSeriousCount) high+)" : "")")
+                .foregroundStyle(model.openSeriousCount > 0 ? Theme.red : Theme.dim)
+                .fontWeight(model.openSeriousCount > 0 ? .bold : .regular)
             if model.knownBadCount > 0 {
                 Text("[!] \(model.knownBadCount) known-bad destinations").foregroundStyle(Theme.red).fontWeight(.bold)
             }

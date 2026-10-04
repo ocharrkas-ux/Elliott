@@ -12,6 +12,7 @@ struct ConsoleRow: Identifiable {
     var status: Int { rule == nil ? 0 : rule!.verdict == .deny ? 1 : 2 }
     var summary: String { profile.analysis?.description ?? "" }
     var intelRank: Int { profile.intel?.reputation.rawValue ?? 0 }
+    var edrRank: Int { profile.edr?.severity.rawValue ?? -1 }
     /// Deny suggestions sort above allows, then by confidence.
     var suggestRank: Int { profile.suggestion.map { ($0.verdict == .deny ? 1000 : 0) + $0.confidence } ?? -1 }
 }
@@ -19,7 +20,7 @@ struct ConsoleRow: Identifiable {
 struct ConsoleView: View {
     enum Filter: String, CaseIterable, Identifiable {
         case all = "All", unclassified = "Unclassified", allowed = "Allowed", denied = "Denied", risky = "High risk",
-             knownBad = "Threat intel hits", suggested = "Has suggestion"
+             knownBad = "Threat intel hits", processAlerts = "Process alerts (EDR)", suggested = "Has suggestion"
         var id: String { rawValue }
     }
 
@@ -43,6 +44,7 @@ struct ConsoleView: View {
             case .risky: if row.risk < 50 { return nil }
             case .knownBad: if (p.intel?.reputation ?? .unknown) < .suspicious { return nil }
             case .suggested: if p.suggestion == nil || row.rule != nil { return nil }
+            case .processAlerts: if p.edr == nil { return nil }
             }
             if !q.isEmpty && ![p.appName, p.processPath, p.destination, p.hostname ?? "", row.summary,
                                p.addresses.joined(separator: " ")].contains(where: { $0.lowercased().contains(q) }) {
@@ -74,6 +76,12 @@ struct ConsoleView: View {
                 }
             }.width(min: 160, ideal: 260)
             TableColumn("Intel", value: \.intelRank) { r in IntelBadge(intel: r.profile.intel) }.width(min: 70, ideal: 100)
+            TableColumn("EDR", value: \.edrRank) { r in
+                if let e = r.profile.edr {
+                    Image(systemName: "exclamationmark.shield.fill").foregroundStyle(e.severity.color)
+                        .help("Process alerts: " + e.titles.joined(separator: "\n"))
+                }
+            }.width(40)
             TableColumn("Risk", value: \.risk) { r in
                 RiskBadge(score: r.risk, pending: r.profile.analysis == nil)
             }.width(min: 90, ideal: 110)
@@ -146,6 +154,20 @@ struct ConsoleView: View {
         }
         .navigationTitle("connections")
         .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+            let serious = model.openSeriousCount
+            if serious > 0 {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.shield.fill")
+                    Text("\(serious) open high/critical EDR detection\(serious == 1 ? "" : "s")").fontWeight(.bold)
+                    Spacer()
+                    Button("Connections") { filter = .processAlerts }.buttonStyle(.bordered)
+                    Button("Detections") { model.section = .detections }.buttonStyle(.bordered)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(Color(red: 0.55, green: 0.05, blue: 0.1))
+            }
             let bad = model.knownBadCount
             if bad > 0 {
                 HStack(spacing: 8) {
@@ -157,6 +179,7 @@ struct ConsoleView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14).padding(.vertical, 8)
                 .background(Theme.red.opacity(0.85))
+            }
             }
         }
         .confirmationDialog("Accept every suggestion with confidence ≥ \(acceptThreshold ?? 0)%?",
@@ -226,6 +249,24 @@ struct ProfileDetail: View {
                 }
 
                 IntelBox(profile: p)
+
+                let procFindings = model.findings(forPath: p.processPath)
+                if !procFindings.isEmpty {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(procFindings.prefix(6)) { f in
+                                HStack(alignment: .firstTextBaseline) {
+                                    SeverityBadge(severity: f.severity)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(f.title).font(.callout)
+                                        if let t = f.triage { AssessmentLabel(triage: t, pending: false).font(.caption) }
+                                    }
+                                }
+                            }
+                            Button("Open in Detections") { model.section = .detections }
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
+                    } label: { Label("Process behavior (EDR)", systemImage: "exclamationmark.shield") }
+                }
 
                 GroupBox("What it's doing") {
                     VStack(alignment: .leading, spacing: 6) {
