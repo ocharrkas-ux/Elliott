@@ -24,9 +24,11 @@ struct Component: Codable, Hashable, Identifiable {
     var requires: [String]?
     /// The CPE came from an NVD product-dictionary lookup rather than the built-in table.
     var cpeAuto: Bool?
+    /// Homebrew: an older version left in the Cellar after an upgrade (not the one in use).
+    var staleKeg: Bool?
 
     var id: String { "\(kind.rawValue)|\(ecosystem ?? "")|\(name)|\(version)|\(location)" }
-    var display: String { "\(name) \(version)" }
+    var display: String { "\(name) \(version)\(staleKeg == true ? " (old copy, not in use)" : "")" }
 }
 
 struct Vulnerability: Codable, Hashable, Identifiable {

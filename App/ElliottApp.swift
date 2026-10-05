@@ -65,6 +65,8 @@ struct MenuBarMenu: View {
         Divider()
         Toggle("LOCKDOWN", isOn: Binding(get: { model.settings.lockdown }, set: { model.setLockdown($0) }))
             .disabled(!model.enforcing)
+        Toggle("Low Power LLM (only when asked)", isOn: $model.settings.llm.lowPower)
+            .disabled(!model.settings.llm.enabled)
         Button("Open Console") {
             openWindow(id: "main")
             NSApp.activate()

@@ -229,6 +229,8 @@ final class AppModel: ObservableObject {
     /// Detections the user marked benign and then cleared: they stay silenced.
     private var suppressedFindingKeys: Set<String> = []
     private var reachQueue: [String] = []
+    /// Work the user asked for (all that runs in low-power mode).
+    private var requestedJobs: Set<String> = []
     private let jobs = BackgroundJobs()
     let names = NameResolver()
     @Published private(set) var nameCapture: (active: Bool, interfaces: [String]) = (false, [])
@@ -1072,12 +1074,13 @@ final class AppModel: ObservableObject {
                    cpuLoad: Hardware.loadPerCore, gpuUtilization: Hardware.gpuUtilization(),
                    llmModels: settings.llm.enabled && llmServerIssue == nil ? localModels : [],
                    llmQueue: analysisQueue.count + suggestQueue.count + triageQueue.count + reachQueue.count,
-                   acceptsLLMWork: settings.mesh.shareLLM && settings.llm.enabled && llmServerIssue == nil)
+                   acceptsLLMWork: settings.mesh.shareLLM && settings.llm.enabled && !settings.llm.lowPower && llmServerIssue == nil)
     }
 
     /// A member asked this Mac to run an LLM job.
     private func runLLMForPeer(system: String, user: String, schema: Data) async throws -> String {
         guard settings.mesh.shareLLM, settings.llm.enabled else { throw MeshNode.RemoteLLMError.failed("this node isn't sharing its LLM") }
+        guard !settings.llm.lowPower else { throw MeshNode.RemoteLLMError.failed("this node is in low-power mode") }
         guard await checkLLMServer() else { throw MeshNode.RemoteLLMError.failed("this node's LLM server isn't trusted right now") }
         let dict = (try? JSONSerialization.jsonObject(with: schema) as? [String: Any]) ?? [:]
         return try await LocalLLM(settings: settings.llm).completeLocally(system: system, user: user, schema: dict)
@@ -1178,13 +1181,28 @@ final class AppModel: ObservableObject {
     func reanalyze(_ ids: [String]) {
         for id in ids { analysisFailures[id] = nil; analysisQueue.removeAll { $0 == id } }
         analysisQueue.insert(contentsOf: ids, at: 0)
+        requestedJobs.formUnion(ids.map { "a:" + $0 })
+        // Asking about a connection also asks for a suggestion (when suggestions are active).
+        requestSuggestions(ids, pump: false)
         pumpAnalysis()
     }
+
+    func requestSuggestions(_ ids: [String], pump: Bool = true) {
+        let eligible = ids.filter { profiles[$0].map(needsSuggestion) ?? false }
+        for id in eligible { analysisFailures["s:" + id] = nil }
+        suggestQueue.removeAll { eligible.contains($0) }
+        suggestQueue.insert(contentsOf: eligible, at: 0)
+        requestedJobs.formUnion(eligible.map { "s:" + $0 })
+        if pump { pumpAnalysis() }
+    }
+
+    var lowPowerLLM: Bool { settings.llm.lowPower }
 
     private enum Job { case analyze(String), suggest(String), triage(UUID), reach(String) }
 
     /// Analysis first (it feeds suggestions), then suggestions for unclassified connections.
     private func nextJob() -> Job? {
+        if settings.llm.lowPower { return nextRequestedJob() }
         // Serious detections first: someone may be waiting to decide whether to kill something.
         while let id = triageQueue.first {
             triageQueue.removeFirst()
@@ -1200,6 +1218,32 @@ final class AppModel: ObservableObject {
             let id = suggestQueue.removeFirst()
             if let p = profiles[id], needsSuggestion(p) { return .suggest(id) }
         }
+        return nil
+    }
+
+    /// Low power: only what the user asked for. Other queued work is left in place for when it's switched off.
+    private func nextRequestedJob() -> Job? {
+        if let i = triageQueue.firstIndex(where: { requestedJobs.contains("t:" + $0.uuidString) }) {
+            let id = triageQueue.remove(at: i)
+            requestedJobs.remove("t:" + id.uuidString)
+            if let f = findings.first(where: { $0.id == id }), f.triage == nil { return .triage(id) }
+        }
+        if let i = reachQueue.firstIndex(where: { requestedJobs.contains("r:" + $0) }) {
+            let id = reachQueue.remove(at: i)
+            requestedJobs.remove("r:" + id)
+            if vulnFindings.contains(where: { $0.id == id }) { return .reach(id) }
+        }
+        if let i = analysisQueue.firstIndex(where: { requestedJobs.contains("a:" + $0) }) {
+            let id = analysisQueue.remove(at: i)
+            requestedJobs.remove("a:" + id)
+            return .analyze(id)
+        }
+        if let i = suggestQueue.firstIndex(where: { requestedJobs.contains("s:" + $0) }) {
+            let id = suggestQueue.remove(at: i)
+            requestedJobs.remove("s:" + id)
+            if let p = profiles[id], needsSuggestion(p) { return .suggest(id) }
+        }
+        requestedJobs.removeAll()   // anything left referred to work that no longer exists
         return nil
     }
 
@@ -1253,18 +1297,21 @@ final class AppModel: ObservableObject {
                     self.analysisFailures[failKey] = n
                     if n < 2 {
                         if case .analyze = job { self.analysisQueue.append(id) } else { self.suggestQueue.append(id) }
+                        self.requestedJobs.insert(failKey.hasPrefix("s:") ? failKey : "a:" + id)   // still wanted
                     }
                     self.llmStatus = e.localizedDescription
                     if case .notLocal = e { break }
                 } catch {
                     // Server not reachable: keep the work and try again in a bit.
                     if case .analyze = job { self.analysisQueue.insert(id, at: 0) } else { self.suggestQueue.insert(id, at: 0) }
+                    self.requestedJobs.insert(failKey.hasPrefix("s:") ? failKey : "a:" + id)
                     self.llmStatus = "LLM unavailable (\(error.localizedDescription)); retrying in 30 s"
                     self.analyzingID = nil; self.suggestingID = nil
                     try? await Task.sleep(for: .seconds(30))
                 }
                 self.analyzingID = nil; self.suggestingID = nil
             }
+            if let self, self.settings.llm.lowPower { self.llmStatus = "Low power: the LLM runs only when you ask" }
             self?.analysisTask = nil
         }
     }
@@ -1577,6 +1624,7 @@ final class AppModel: ObservableObject {
     func retriage(_ ids: [UUID]) {
         for id in ids { if let i = findings.firstIndex(where: { $0.id == id }) { findings[i].triage = nil } }
         triageQueue.insert(contentsOf: ids, at: 0)
+        requestedJobs.formUnion(ids.map { "t:" + $0.uuidString })
         pumpAnalysis()
     }
 
@@ -1900,6 +1948,7 @@ final class AppModel: ObservableObject {
             vulnFindings[i].reachability.llmRationale = nil
         }
         reachQueue.insert(contentsOf: ids, at: 0)
+        requestedJobs.formUnion(ids.map { "r:" + $0 })
         pumpAnalysis()
     }
 

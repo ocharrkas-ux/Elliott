@@ -214,9 +214,13 @@ struct FindingDetail: View {
                             Text("→ " + t.recommendation).fontWeight(.semibold)
                             Text(t.model).font(.caption2).foregroundStyle(Theme.dim)
                         } else {
-                            Text(model.triagingID == f.id ? "Triaging…" : f.severity >= .medium ? "Queued for triage." : "Low severity: not triaged automatically.")
+                            Text(model.triagingID == f.id ? "Triaging…"
+                                 : model.lowPowerLLM ? "Low power: not triaged unless you ask."
+                                 : f.severity >= .medium ? "Queued for triage." : "Low severity: not triaged automatically.")
                                 .foregroundStyle(Theme.dim)
-                            if f.severity < .medium { Button("Triage Now") { model.retriage([f.id]) } }
+                            if model.triagingID != f.id && (f.severity < .medium || model.lowPowerLLM) {
+                                Button("Triage Now") { model.retriage([f.id]) }
+                            }
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
                 } label: { Label("LLM triage", systemImage: "brain") }

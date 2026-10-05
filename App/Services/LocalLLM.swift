@@ -32,6 +32,9 @@ struct LLMSettings: Codable, Equatable {
     var model = "qwen2.5:3b"
     var enabled = true
     var pinnedServer: LLMServerIdentity?
+    /// Low power: the LLM only runs when the user asks (analyze, suggest, triage, reachability), never in the
+    /// background, and the model is unloaded soon after.
+    var lowPower = false
 
     var port: Int { URL(string: baseURL)?.port ?? (URL(string: baseURL)?.scheme == "https" ? 443 : 80) }
 
@@ -45,6 +48,7 @@ struct LLMSettings: Codable, Equatable {
         model = try c.decodeIfPresent(String.self, forKey: .model) ?? d.model
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled
         pinnedServer = try c.decodeIfPresent(LLMServerIdentity.self, forKey: .pinnedServer)
+        lowPower = try c.decodeIfPresent(Bool.self, forKey: .lowPower) ?? d.lowPower
     }
 }
 
@@ -182,6 +186,7 @@ struct LocalLLM {
             req = URLRequest(url: base.appendingPathComponent("api/chat"))
             body = ["model": settings.model, "messages": messages, "stream": false, "format": schema,
                     "options": ["temperature": 0.1]]
+            if settings.lowPower { body["keep_alive"] = "1m" }   // free the model's memory soon after
         case .openAICompatible:
             req = URLRequest(url: base.appendingPathComponent("v1/chat/completions"))
             body = ["model": settings.model, "messages": messages, "temperature": 0.1,

@@ -103,6 +103,9 @@ enum RemediationPlanner {
         e["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
         e["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         e["HOMEBREW_NO_ENV_HINTS"] = "1"
+        // `brew cleanup`/`uninstall` otherwise also remove every dependency no formula needs any more: fixing one
+        // formula must never uninstall others.
+        e["HOMEBREW_NO_AUTOREMOVE"] = "1"
         return e
     }()
 
@@ -195,6 +198,14 @@ enum RemediationPlanner {
     static func planHomebrew(_ p: inout RemediationPlan) {
         let name = p.component.name
         guard validName(name), let brew = tool("brew") else { p.blocked = "Homebrew not found."; return }
+        if p.component.staleKeg == true {
+            // A leftover from an earlier upgrade: nothing to upgrade, just delete the old copy.
+            p.target = nil
+            p.steps.append(RemediationStep(kind: .command,
+                                           summary: "brew cleanup \(name) (removes the old \(p.component.version) copy; a newer version is the one in use)",
+                                           command: [brew, "cleanup", name]))
+            return
+        }
         // Does Homebrew have the fixed version yet?
         let info = run([brew, "info", "--json=v2", name]).output
         if let obj = try? JSONSerialization.jsonObject(with: Data(info.utf8)) as? [String: Any],
@@ -400,6 +411,13 @@ enum RemediationExecutor {
             if failed { break }
         }
 
+        if plan.component.staleKeg == true {
+            let gone = !FileManager.default.fileExists(atPath: plan.component.location)
+            say(gone ? "✓ Verified: the old \(plan.component.name) \(plan.component.version) copy is gone."
+                     : "✗ The old copy is still at \(plan.component.location).")
+            r.status = gone ? (failed ? .partial : .succeeded) : .failed
+            return r
+        }
         r.verifiedVersion = installedVersion(plan.component)
         if let v = r.verifiedVersion, let t = plan.target {
             let ok = Version.compare(v, t) != .orderedAscending
@@ -417,8 +435,9 @@ enum RemediationExecutor {
         case .homebrew:
             guard let brew = RemediationPlanner.tool("brew") else { return nil }
             let out = RemediationPlanner.run([brew, "list", "--versions", c.name]).output
-            return out.split(separator: " ").last.map { String($0).trimmingCharacters(in: .whitespacesAndNewlines)
-                .replacingOccurrences(of: #"_\d+$"#, with: "", options: .regularExpression) }
+            let kegs = out.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: " ").dropFirst().map(String.init)
+            let prefix = ((brew as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent
+            return Inventory.activeKeg(c.name, kegs: kegs, prefix: prefix).map(Inventory.brewVersion)
         case .package:
             let norm = Inventory.normalize(c.name, c.ecosystem ?? "")
             // Prefer what's actually installed (virtualenv) over what's declared.

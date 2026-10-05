@@ -245,7 +245,10 @@ struct ConsoleView: View {
                 }
             }
             Divider()
-            Button("Re-analyze with LLM") { model.reanalyze(Array(ids)) }
+            Button("Analyze with LLM") { model.reanalyze(Array(ids)) }
+            if model.canSuggest {
+                Button("Suggest Action with LLM") { model.requestSuggestions(Array(ids)) }
+            }
             Button("Show in Finder") { ps.forEach { NSWorkspace.shared.selectFile($0.processPath, inFileViewerRootedAtPath: "") } }
             Divider()
             Button("Forget", role: .destructive) { model.forget(ids) }
@@ -491,8 +494,14 @@ struct ProfileDetail: View {
                             Text("Category: \(a.category) · LLM risk \(a.risk) · \(a.model)").font(.caption).foregroundStyle(.secondary)
                             ForEach(a.reasons, id: \.self) { Text("• \($0)").font(.callout) }
                         } else {
-                            Text(model.analyzingID == p.id ? "Analyzing…" : "Not analyzed yet (\(model.llmStatus))")
-                                .foregroundStyle(.secondary)
+                            if model.analyzingID == p.id {
+                                Text("Analyzing…").foregroundStyle(.secondary)
+                            } else if model.lowPowerLLM {
+                                Text("Low power: not analyzed unless you ask.").foregroundStyle(.secondary)
+                                Button("Analyze with LLM") { model.reanalyze([p.id]) }
+                            } else {
+                                Text("Not analyzed yet (\(model.llmStatus))").foregroundStyle(.secondary)
+                            }
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
                 }
@@ -568,7 +577,13 @@ struct ProfileDetail: View {
                         row("Last outcome", p.lastOutcome.rawValue)
                     }.font(.callout).padding(4)
                 }
-                Button("Re-analyze") { model.reanalyze([p.id]) }
+                HStack {
+                    Button(p.analysis == nil ? "Analyze" : "Re-analyze") { model.reanalyze([p.id]) }
+                    if model.canSuggest && rule == nil {
+                        Button(p.suggestion == nil ? "Suggest Action" : "Refresh Suggestion") { model.requestSuggestions([p.id]) }
+                            .help("Ask the LLM what you'd likely decide, based on your past decisions")
+                    }
+                }
             }
             .padding()
         }

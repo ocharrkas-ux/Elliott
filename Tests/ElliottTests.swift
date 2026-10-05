@@ -1397,4 +1397,22 @@ final class ElliottTests: XCTestCase {
         let named = pktapPacket(pid: 77, comm: "Safari", src: [10, 0, 0, 5], dst: [3, 5, 7, 9], tcpFlags: 0x02, dir: 2)
         XCTAssertEqual(feed(&t4, named, 1)?.name, "Safari")
     }
+
+    func testHomebrewActiveKegFollowsOptLinkNotListOrder() throws {
+        let prefix = FileManager.default.temporaryDirectory.appendingPathComponent("brew-\(UUID())").path
+        try FileManager.default.createDirectory(atPath: prefix + "/Cellar/openssl@3/3.6.5", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: prefix + "/Cellar/openssl@3/3.5.1", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: prefix + "/opt", withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: prefix + "/opt/openssl@3", withDestinationPath: "../Cellar/openssl@3/3.6.5")
+        // `brew list --versions` printed "openssl@3 3.6.5 3.5.1": newest first.
+        XCTAssertEqual(Inventory.activeKeg("openssl@3", kegs: ["3.6.5", "3.5.1"], prefix: prefix), "3.6.5")
+        XCTAssertEqual(Inventory.activeKeg("openssl@3", kegs: ["3.5.1", "3.6.5"], prefix: prefix), "3.6.5")
+        // No opt link: the newest wins, whatever the order.
+        XCTAssertEqual(Inventory.activeKeg("ffmpeg", kegs: ["7.1.1_3", "6.0"], prefix: prefix), "7.1.1_3")
+        XCTAssertEqual(Inventory.brewVersion("7.1.1_3"), "7.1.1")
+        var c = Component(kind: .homebrew, name: "openssl@3", version: "3.5.1", location: prefix + "/Cellar/openssl@3/3.5.1")
+        c.staleKeg = true
+        XCTAssertEqual(c.display, "openssl@3 3.5.1 (old copy, not in use)")
+        try? FileManager.default.removeItem(atPath: prefix)
+    }
 }

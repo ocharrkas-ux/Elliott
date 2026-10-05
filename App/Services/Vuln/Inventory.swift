@@ -92,16 +92,35 @@ enum Inventory {
     static func homebrew() -> [Component] {
         guard let brew = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"].first(where: FileManager.default.isExecutableFile) else { return [] }
         let prefix = (brew as NSString).deletingLastPathComponent.replacingOccurrences(of: "/bin", with: "")
-        return run(brew, ["list", "--formula", "--versions"]).split(separator: "\n").compactMap { line in
+        return run(brew, ["list", "--formula", "--versions"]).split(separator: "\n").flatMap { line -> [Component] in
             let parts = line.split(separator: " ").map(String.init)
-            guard parts.count >= 2 else { return nil }
-            let formula = parts[0]
-            // "ffmpeg 7.1.1_3" → 7.1.1 (drop Homebrew's revision suffix); several versions → newest listed last
-            let version = parts.last!.replacingOccurrences(of: #"_\d+$"#, with: "", options: .regularExpression)
+            guard parts.count >= 2 else { return [] }
+            let formula = parts[0], kegs = Array(parts.dropFirst())
+            let active = activeKeg(formula, kegs: kegs, prefix: prefix)
             let base = formula.replacingOccurrences(of: #"@[\d.]+$"#, with: "", options: .regularExpression)
-            return Component(kind: .homebrew, name: formula, version: version, cpe: brewCPE[base],
-                             location: "\(prefix)/Cellar/\(formula)/\(parts.last!)")
+            // The keg in use, plus older ones Homebrew left behind (still on disk, so still worth flagging).
+            return kegs.map { keg in
+                var c = Component(kind: .homebrew, name: formula, version: brewVersion(keg), cpe: brewCPE[base],
+                                  location: "\(prefix)/Cellar/\(formula)/\(keg)")
+                if keg != active { c.staleKeg = true }
+                return c
+            }
         }
+    }
+
+    /// "ffmpeg 7.1.1_3" → 7.1.1 (drop Homebrew's revision suffix).
+    static func brewVersion(_ keg: String) -> String {
+        keg.replacingOccurrences(of: #"_\d+$"#, with: "", options: .regularExpression)
+    }
+
+    /// The installed version in use: what opt/<formula> links to (`brew list --versions` order isn't by version),
+    /// else the newest.
+    static func activeKeg(_ formula: String, kegs: [String], prefix: String) -> String? {
+        if let dest = try? FileManager.default.destinationOfSymbolicLink(atPath: "\(prefix)/opt/\(formula)") {
+            let keg = (dest as NSString).lastPathComponent
+            if kegs.contains(keg) { return keg }
+        }
+        return kegs.max { Version.compare(brewVersion($0), brewVersion($1)) == .orderedAscending }
     }
 
     // MARK: Listening services (this Mac only)

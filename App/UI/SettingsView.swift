@@ -116,6 +116,12 @@ struct LLMSettingsView: View {
         Form {
             Section("Model") {
                 Toggle("Describe and rate connections with a local LLM", isOn: $model.settings.llm.enabled)
+                Toggle("Low power: run the LLM only when I ask", isOn: $model.settings.llm.lowPower)
+                    .disabled(!model.settings.llm.enabled)
+                Text(model.settings.llm.lowPower
+                     ? "New connections, detections and vulnerabilities aren't sent to the LLM automatically. Use Analyze, Suggest Action, Triage Now or Re-check with LLM. The model is unloaded a minute after use, and this Mac doesn't run LLM work for other Elliott nodes. Rules, threat intel, EDR and enforcement work as normal."
+                     : "Every new connection is described and rated, serious detections are triaged and vulnerable code paths are judged in the background. Turn on low power to save battery.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Picker("Server", selection: $model.settings.llm.provider) {
                     Text("Ollama").tag(LLMSettings.Provider.ollama)
                     Text("OpenAI-compatible (LM Studio, llama.cpp)").tag(LLMSettings.Provider.openAICompatible)
