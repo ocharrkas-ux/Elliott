@@ -59,6 +59,7 @@ struct NodeReport: Codable, Sendable {
     var vulnFindings: [VulnFinding]
     var componentCount: Int
     var decisionCount: Int
+    var scanHosts: [ScannedHost]? = nil
 }
 
 /// Load and capacity, for deciding where LLM work runs.

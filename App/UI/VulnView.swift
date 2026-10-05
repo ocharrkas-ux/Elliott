@@ -339,6 +339,9 @@ struct VulnDetail: View {
         case .app: return "Update \(f.component.name)\(fix.map { " to \($0) or later" } ?? "") (its own updater, the App Store, or the vendor's site)."
         case .homebrew: return "Run: brew upgrade \(f.component.name)"
         case .os: return "Install the latest macOS update (System Settings → General → Software Update)."
+        case .remote:
+            return f.vuln.id.hasPrefix("EXPOSED") ? f.vuln.details + " This is another device: change it on that device (or its admin page)."
+                : "Update the software on \(f.component.location)\(fix.map { " to \($0) or later" } ?? "") (firmware or package update on that device)."
         case .service:
             return f.vuln.id.hasPrefix("EXPOSED") ? f.vuln.details
                 : "Update \(f.component.name)\(fix.map { " to \($0) or later" } ?? ""), or stop exposing it on the network."

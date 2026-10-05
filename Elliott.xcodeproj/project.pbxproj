@@ -80,6 +80,7 @@
 		857F8C4716D1456CB119E9AF /* NameResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9900790D6DEEF439B1EF95AA /* NameResolver.swift */; };
 		875312F8E71B928D0B2B2EF8 /* Advisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53F2BCF2E20A9DAFB45973CD /* Advisor.swift */; };
 		89607AFA0C735D343A1A41B0 /* Hardware.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A0A5497763E909C89D53739 /* Hardware.swift */; };
+		898185BACFEC8F4AE0A54D75 /* NetScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764F5866BEAF847599429B43 /* NetScanView.swift */; };
 		8AA7912283D31B4B2F491AA1 /* DNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C535C908A5B1FA6CA673BA4A /* DNSCache.swift */; };
 		8B0FD8477A3C166197C89C7C /* TriageLLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527800D61FCFAB2634524CA9 /* TriageLLM.swift */; };
 		90578FE8877BAB4BD53711F2 /* EDRMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6836D6D87AF0320CC0A1F2F /* EDRMonitor.swift */; };
@@ -103,6 +104,7 @@
 		B04C2CEF19DABCE5E1114240 /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28F5C37C6537AB3634A0811 /* XPCProtocol.swift */; };
 		B0B2692E4E4018012EE3367A /* RiskHeuristics.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA2EF48F36E55E307F981D7 /* RiskHeuristics.swift */; };
 		B218235DD3203DAB1FC2F69C /* Net.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0AE1DCE244996E8ED09EF3 /* Net.swift */; };
+		B21DB30CD108DF8A1BEBA09D /* NetScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F479E5C45CCD85FEA06BE2 /* NetScanner.swift */; };
 		B2D9903D61E44F7A67E847BA /* Detections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5488DE7CB47D490BAFF0E26 /* Detections.swift */; };
 		B4EFDBC6D9D1EBDE0843BAFE /* MeshNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3EC6A1C6DC6D76828484EA1 /* MeshNode.swift */; };
 		B511634FF15A649F2D76E57C /* NameCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E4EA98A6352F244008B02C /* NameCapture.swift */; };
@@ -139,6 +141,8 @@
 		F2EA6BC88E4E35C905D8E04C /* ApprovalPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67326EE3FA7EB0FC88FCB684 /* ApprovalPanel.swift */; };
 		F4AE6BBA7E3D11C1555FEE5E /* LogAndRulesViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A674263B51CA8727B00DFE /* LogAndRulesViews.swift */; };
 		F5BA3AF0FB04417C4D7544CD /* PFRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7BCFAB7B0EF004524E166A0 /* PFRules.swift */; };
+		F69ECA21CE6165031600DA79 /* NetScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764F5866BEAF847599429B43 /* NetScanView.swift */; };
+		F81C1D2C298FB26678013DA6 /* NetScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F479E5C45CCD85FEA06BE2 /* NetScanner.swift */; };
 		F82D00731A89C652B073DEE5 /* ConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D48AA4B7F13342F47EFFD3 /* ConsoleView.swift */; };
 		FDF1535B41DC24AD3EBBC828 /* ElliottFilter.systemextension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = FCCDE0852D5B3E4115A3E20A /* ElliottFilter.systemextension */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		FF4172D8497CB24C7074A758 /* MeshNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3EC6A1C6DC6D76828484EA1 /* MeshNode.swift */; };
@@ -272,6 +276,7 @@
 		69D414CF45D6ADE1AA3D4290 /* Signers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Signers.swift; sourceTree = "<group>"; };
 		70E80898B153F6188E81D78A /* LocalLLM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLLM.swift; sourceTree = "<group>"; };
 		74CAF8778366339F269392BD /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
+		764F5866BEAF847599429B43 /* NetScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetScanView.swift; sourceTree = "<group>"; };
 		7CA11CEEB95869CB8AB52440 /* MeshMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshMessages.swift; sourceTree = "<group>"; };
 		842553ED94F361781075D0AF /* FilterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterService.swift; sourceTree = "<group>"; };
 		86FC6F8422802E1CEF323905 /* MeshPeer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshPeer.swift; sourceTree = "<group>"; };
@@ -301,6 +306,7 @@
 		D6E4EA98A6352F244008B02C /* NameCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameCapture.swift; sourceTree = "<group>"; };
 		D81B7BE864C64B1AFFDF62B0 /* Remediation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Remediation.swift; sourceTree = "<group>"; };
 		DC1FECCDF0DFF3845F82B0BA /* RulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesView.swift; sourceTree = "<group>"; };
+		E0F479E5C45CCD85FEA06BE2 /* NetScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetScanner.swift; sourceTree = "<group>"; };
 		E2AB4704F58DE7AC4DD6482A /* Registry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Registry.swift; sourceTree = "<group>"; };
 		E3EC6A1C6DC6D76828484EA1 /* MeshNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshNode.swift; sourceTree = "<group>"; };
 		EA53A9942EDC758F8372FFB6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -332,6 +338,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0EF93F98D835AC26C258516C /* NetScan */ = {
+			isa = PBXGroup;
+			children = (
+				E0F479E5C45CCD85FEA06BE2 /* NetScanner.swift */,
+			);
+			path = NetScan;
+			sourceTree = "<group>";
+		};
 		0F7EB829C4A1F5DA92377FE9 /* Helper */ = {
 			isa = PBXGroup;
 			children = (
@@ -374,6 +388,7 @@
 				07B5597CD070D5E8C0A9D5A0 /* IntelViews.swift */,
 				17A674263B51CA8727B00DFE /* LogAndRulesViews.swift */,
 				2C70A7403DFC04E89131A258 /* MainView.swift */,
+				764F5866BEAF847599429B43 /* NetScanView.swift */,
 				5F15C5DE81E07663F028819F /* NetworkViews.swift */,
 				B825D0E3F1CF4A51D3D50E08 /* RemediationViews.swift */,
 				DC1FECCDF0DFF3845F82B0BA /* RulesView.swift */,
@@ -457,6 +472,7 @@
 				15178A7BFAA6DEFFD1714712 /* Untrusted.swift */,
 				66153FBD0A0EE7F5B24B0D06 /* EDR */,
 				11664D3F3480597DAD55AF46 /* Mesh */,
+				0EF93F98D835AC26C258516C /* NetScan */,
 				AD900DD2F71782272949A161 /* Vuln */,
 			);
 			path = Services;
@@ -734,6 +750,8 @@
 				35B89B99309FAC1C0A59FC48 /* Models.swift in Sources */,
 				DDAC93880DA4767BCDF48622 /* NameResolver.swift in Sources */,
 				B5B3F6076BE3B28F8516718C /* Net.swift in Sources */,
+				F69ECA21CE6165031600DA79 /* NetScanView.swift in Sources */,
+				F81C1D2C298FB26678013DA6 /* NetScanner.swift in Sources */,
 				D82772015DE1D54312C3A2AB /* NetworkViews.swift in Sources */,
 				3C649C858099A60B9399F82B /* PFRules.swift in Sources */,
 				78917AFC68F3CF2A32BAAA36 /* PacketParse.swift in Sources */,
@@ -795,6 +813,8 @@
 				7F5BE77C88A0BC34166E3037 /* Models.swift in Sources */,
 				857F8C4716D1456CB119E9AF /* NameResolver.swift in Sources */,
 				B218235DD3203DAB1FC2F69C /* Net.swift in Sources */,
+				898185BACFEC8F4AE0A54D75 /* NetScanView.swift in Sources */,
+				B21DB30CD108DF8A1BEBA09D /* NetScanner.swift in Sources */,
 				3F5702622D1E9F4DE84DD2C9 /* NetworkViews.swift in Sources */,
 				FFAF4EDCD9344B023854C2A0 /* PFRules.swift in Sources */,
 				0CC795408442AD2DDC0814B5 /* PacketParse.swift in Sources */,

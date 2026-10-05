@@ -170,6 +170,9 @@ enum RemediationPlanner {
         case .os:
             p.steps.append(RemediationStep(kind: .manual, summary: "Install the latest macOS update in System Settings → General → Software Update."))
             p.blocked = "macOS updates need your password and usually a restart."
+        case .remote:
+            p.steps.append(RemediationStep(kind: .manual, summary: "Update or reconfigure the device at \(c.location) (\(c.name)); Elliott can't change other machines."))
+            p.blocked = "This is another device on your network."
         case .service:
             p.steps.append(RemediationStep(kind: .manual, summary: "Update \(c.name)\(target.map { " to \($0) or later" } ?? "") (it's provided by \(c.location))."))
             p.blocked = "Elliott can't tell how this service was installed."

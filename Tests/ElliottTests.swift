@@ -1157,4 +1157,43 @@ final class ElliottTests: XCTestCase {
         XCTAssertTrue(pf.contains("to any port 50123 keep state"))
         XCTAssertFalse(PFRules.generate(FilterPolicy(rules: [], lockdown: true)).contains("50123"))
     }
+
+    // MARK: network scanning
+
+    func testCIDRParsingAndLimits() {
+        XCTAssertEqual(CIDR.count("192.168.1.0/24"), 254)
+        XCTAssertEqual(CIDR.hosts("10.0.0.0/30"), ["10.0.0.1", "10.0.0.2"])
+        XCTAssertNil(CIDR.parse("300.1.1.0/24"))
+        XCTAssertNil(CIDR.parse("10.0.0.0/33"))
+        XCTAssertTrue(CIDR.isPrivate("172.16.4.0/24"))
+        XCTAssertFalse(CIDR.isPrivate("8.8.8.0/24"))
+        XCTAssertNil(CIDR.check("192.168.0.0/16", ownedPublic: false))
+        XCTAssertEqual(CIDR.check("10.0.0.0/8", ownedPublic: false), .tooLarge)
+        XCTAssertEqual(CIDR.check("nonsense", ownedPublic: false), .invalid)
+        XCTAssertEqual(CIDR.check("8.8.8.0/24", ownedPublic: false), .publicRange)
+        XCTAssertNil(CIDR.check("8.8.8.0/24", ownedPublic: true))
+    }
+
+    func testBannerIdentification() {
+        XCTAssertEqual(NetScanner.identify("SSH-2.0-OpenSSH_8.9p1 Ubuntu-3", port: 22)?.0, "OpenSSH")
+        XCTAssertEqual(NetScanner.identify("HTTP/1.1 200 OK\r\nServer: nginx/1.18.0\r\n", port: 80)?.0, "nginx")
+        XCTAssertEqual(NetScanner.identify("HTTP/1.1 200 OK\r\nServer: nginx/1.18.0\r\n", port: 80)?.1, "1.18.0")
+    }
+
+    func testProbeFindsLocalListener() throws {
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        defer { close(fd) }
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        addr.sin_port = 0
+        var len = socklen_t(MemoryLayout<sockaddr_in>.size)
+        _ = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(fd, $0, len) } }
+        listen(fd, 4)
+        _ = withUnsafeMutablePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.getsockname(fd, $0, &len) } }
+        let port = Int(UInt16(bigEndian: addr.sin_port))
+        XCTAssertTrue(NetScanner.probe("127.0.0.1", port, timeout: 1, banner: false).open)
+        close(fd)
+        XCTAssertFalse(NetScanner.probe("127.0.0.1", port, timeout: 1, banner: false).open)
+    }
 }

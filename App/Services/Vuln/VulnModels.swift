@@ -3,7 +3,7 @@ import Foundation
 /// A piece of installed software Elliott checks for known vulnerabilities.
 struct Component: Codable, Hashable, Identifiable {
     enum Kind: String, Codable, CaseIterable {
-        case os = "macOS", app = "app", homebrew = "Homebrew", package = "package", service = "service"
+        case os = "macOS", app = "app", homebrew = "Homebrew", package = "package", service = "service", remote = "network host"
     }
     var kind: Kind
     /// OSV ecosystem (npm, PyPI, Go, crates.io, RubyGems, Packagist, SwiftURL) for packages; nil for NVD-matched software.

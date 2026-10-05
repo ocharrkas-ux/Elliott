@@ -1,13 +1,13 @@
 import SwiftUI
 
 enum MainSection: String, CaseIterable, Identifiable {
-    case console = "connections", detections = "detections", vulns = "vulns", log = "live.log", rules = "rules", firewall = "palo_alto.sync"
-    case netOverview = "overview", netDevices = "devices", netConnections = "all.connections", netDetections = "all.detections", netVulns = "all.vulns"
+    case console = "connections", detections = "detections", vulns = "vulns", netscan = "net.scan", log = "live.log", rules = "rules", firewall = "palo_alto.sync"
+    case netOverview = "overview", netDevices = "devices", netConnections = "all.connections", netDetections = "all.detections", netVulns = "all.vulns", netHosts = "all.hosts"
     /// The List tags rows with their id, so the id must be the same type as the selection.
     var id: MainSection { self }
     var scope: AppModel.AppScope {
         switch self {
-        case .netOverview, .netDevices, .netConnections, .netDetections, .netVulns: .network
+        case .netOverview, .netDevices, .netConnections, .netDetections, .netVulns, .netHosts: .network
         default: .machine
         }
     }
@@ -24,6 +24,8 @@ enum MainSection: String, CaseIterable, Identifiable {
         case .netConnections: "point.3.connected.trianglepath.dotted"
         case .netDetections: "exclamationmark.shield"
         case .netVulns: "ladybug"
+        case .netscan: "dot.radiowaves.left.and.right"
+        case .netHosts: "server.rack"
         }
     }
 }
@@ -77,6 +79,8 @@ struct MainView: View {
             case .netConnections: NetworkConnectionsView()
             case .netDetections: NetworkDetectionsView()
             case .netVulns: NetworkVulnsView()
+            case .netscan: NetScanView()
+            case .netHosts: NetworkHostsView()
             }
         }
         .toolbar {

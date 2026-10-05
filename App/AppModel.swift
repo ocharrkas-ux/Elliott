@@ -19,6 +19,7 @@ struct AppSettings: Codable, Equatable {
     /// Read hostnames from DNS answers and TLS server names (needs the helper; root for packet capture).
     var captureNames = true
     var mesh = MeshSettings()
+    var netscan = NetScanSettings()
 
     init() {}
 
@@ -38,6 +39,7 @@ struct AppSettings: Codable, Equatable {
         remediation = try c.decodeIfPresent(RemediationSettings.self, forKey: .remediation) ?? d.remediation
         captureNames = try c.decodeIfPresent(Bool.self, forKey: .captureNames) ?? d.captureNames
         mesh = try c.decodeIfPresent(MeshSettings.self, forKey: .mesh) ?? d.mesh
+        netscan = try c.decodeIfPresent(NetScanSettings.self, forKey: .netscan) ?? d.netscan
     }
 }
 
@@ -217,6 +219,10 @@ final class AppModel: ObservableObject {
         jobs.every("intel", interval: Self.intelInterval) { [weak self] in await self?.refreshIntel(maxAge: Self.intelInterval) }
         jobs.every("exploits", interval: Self.exploitInterval) { [weak self] in await self?.refreshExploitSignals() }
         jobs.every("scan", interval: 3600) { [weak self] in self?.autoScanIfDue() }
+        jobs.every("netscan", interval: 3600) { [weak self] in
+            guard let self, self.netScanDue() else { return }
+            await self.runNetworkScan()
+        }
         NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification).sink { [weak self] _ in
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(30))
@@ -641,6 +647,86 @@ final class AppModel: ObservableObject {
         mesh?.publishLocal(rules: rules)
     }
 
+    // MARK: Network vulnerability scanning
+
+    @Published private(set) var scanHosts: [ScannedHost] = []
+    @Published private(set) var netScanning = false
+    @Published private(set) var netScanProgress: (String, Double) = ("", 0)
+
+    /// The local IPv4 network this Mac is on, as a /24 suggestion ("192.168.1.0/24").
+    var suggestedSubnet: String? {
+        guard let ip = PolicyPlanner.primaryIPv4(), let v = IPv4Set.parse(ip) else { return nil }
+        let net = v & 0xFFFFFF00
+        return "\(net >> 24).\(net >> 16 & 0xFF).\(net >> 8 & 0xFF).0/24"
+    }
+
+    private func netScanDue() -> Bool {
+        let s = settings.netscan
+        guard s.enabled, !netScanning, s.targets.contains(where: \.enabled) else { return false }
+        guard let last = s.lastScan else { return s.schedule != .manual }
+        switch s.schedule {
+        case .manual: return false
+        case .daily: return Date().timeIntervalSince(last) > 86400
+        case .weekly: return Date().timeIntervalSince(last) > 7 * 86400
+        }
+    }
+
+    /// Scans the configured subnets: live hosts, open services, versions → CVEs, risky exposed services.
+    func runNetworkScan() async {
+        guard settings.netscan.enabled, !netScanning else { return }
+        let targets = settings.netscan.targets.filter { $0.enabled && CIDR.check($0.cidr, ownedPublic: $0.ownedPublic) == nil }.map(\.cidr)
+        guard !targets.isEmpty else { return }
+        netScanning = true
+        defer { netScanning = false }
+        let ports = Array(Set(NetScanner.defaultPorts + settings.netscan.extraPorts.filter { (1...65535).contains($0) })).sorted()
+        let rate = settings.netscan.rate, node = nodeName
+        let hosts = await Task.detached(priority: .utility) { [weak self] in
+            NetScanner.scan(targets: targets, ports: ports, rate: rate, node: node) { msg, frac in
+                Task { @MainActor in self?.netScanProgress = (msg, frac) }
+            }
+        }.value
+
+        netScanProgress = ("Matching services against NVD", 0.92)
+        var found: [VulnFinding] = []
+        var lookups: [String: [Vulnerability]] = [:]
+        for host in hosts {
+            for p in host.ports {
+                let c = Component(kind: .remote, name: p.product ?? p.service, version: p.version ?? "", cpe: p.cpe,
+                                  location: "\(host.label):\(p.port)", exposedPorts: [p.port])
+                if let (what, score, why) = NetScanner.riskyServices[p.port] {
+                    found.append(VulnFinding(component: c, vuln: Vulnerability(
+                        id: "EXPOSED-NET-\(p.port)", summary: "\(what) reachable on \(host.label)",
+                        details: why + " Found by \(node)'s network scan.", cvssScore: score, cvssVersion: "est.")))
+                }
+                guard let cpe = p.cpe, let v = p.version, !v.isEmpty else { continue }
+                let key = "\(cpe)|\(v)"
+                if lookups[key] == nil { lookups[key] = (try? await vulnDB.nvd(cpe: cpe, version: v)) ?? [] }
+                found += (lookups[key] ?? []).map { VulnFinding(component: c, vuln: $0) }
+            }
+        }
+        let kev = await vulnDB.kev()
+        for i in found.indices { if let cve = found[i].vuln.cve { found[i].kev = kev.contains(cve) } }
+
+        // Merge: keep the user's accept/reopen choices; network findings that disappeared were fixed.
+        let old = Dictionary(vulnFindings.filter { $0.component.kind == .remote }.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        var merged = found.map { f -> VulnFinding in
+            var f = f
+            if let prev = old[f.id] { f.firstSeen = prev.firstSeen; f.status = prev.status == .fixed ? .open : prev.status }
+            return f
+        }
+        let current = Set(merged.map(\.id))
+        for f in old.values where !current.contains(f.id) && f.status != .fixed { var g = f; g.status = .fixed; merged.append(g) }
+        let fresh = merged.filter { old[$0.id] == nil && $0.status == .open }
+        vulnFindings = vulnFindings.filter { $0.component.kind != .remote } + merged
+        newVulnIDs.formUnion(fresh.map(\.id))
+        scanHosts = hosts
+        settings.netscan.lastScan = Date()
+        netScanProgress = ("Found \(hosts.count) hosts, \(hosts.reduce(0) { $0 + $1.ports.count }) open services", 1)
+        notifyVulns(new: old.isEmpty ? [] : fresh, exploited: fresh.filter(\.kev))
+        mesh?.broadcastReport(force: true)
+        scheduleSave()
+    }
+
     // MARK: Multi-node
 
     @Published private(set) var mesh: MeshNode?
@@ -721,7 +807,8 @@ final class AppModel: ObservableObject {
                           hostname: nodeName, os: ProcessInfo.processInfo.operatingSystemVersionString,
                           enforcement: backend == .filter ? "per-app filter" : backend == .packetFilter ? "packet filter" : "observe only",
                           lockdown: settings.lockdown, profiles: Array(recentProfiles), findings: shownFindings,
-                          vulnFindings: openVulns, componentCount: components.count, decisionCount: decisions.count)
+                          vulnFindings: openVulns, componentCount: components.count, decisionCount: decisions.count,
+                          scanHosts: scanHosts)
     }
 
     private var statusCache: (NodeStatus, Date)?
@@ -1346,7 +1433,7 @@ final class AppModel: ObservableObject {
             return f
         }
         let current = Set(merged.map(\.id))
-        for f in vulnFindings where !current.contains(f.id) && f.status != .fixed {
+        for f in vulnFindings where !current.contains(f.id) && f.status != .fixed && f.component.kind != .remote {
             var gone = f
             gone.status = .fixed   // no longer installed at that version
             merged.append(gone)
@@ -1647,6 +1734,7 @@ final class AppModel: ObservableObject {
         var newVulnIDs: [String]?
         var membership: Membership?
         var sharedRules: [SharedRule]?
+        var scanHosts: [ScannedHost]?
     }
 
     private var stateURL: URL { dir.appendingPathComponent("state.json") }
@@ -1681,6 +1769,7 @@ final class AppModel: ObservableObject {
         newVulnIDs = Set(s.newVulnIDs ?? [])
         savedMembership = s.membership
         savedSharedRules = s.sharedRules ?? []
+        scanHosts = s.scanHosts ?? []
         // Intel older than a week is re-checked from scratch.
         intel = Dictionary((s.intel ?? []).filter { Date().timeIntervalSince($0.checked) < 7 * 86400 }.map { ($0.ip, $0) },
                            uniquingKeysWith: { a, _ in a })
@@ -1760,7 +1849,8 @@ final class AppModel: ObservableObject {
                               findings: findings, edrBaseline: edrBaseline,
                               vulnFindings: vulnFindings, components: components, remediations: remediations,
                               newVulnIDs: Array(newVulnIDs),
-                              membership: mesh?.membership ?? savedMembership, sharedRules: mesh?.allSharedRules ?? savedSharedRules)
+                              membership: mesh?.membership ?? savedMembership, sharedRules: mesh?.allSharedRules ?? savedSharedRules,
+                              scanHosts: scanHosts)
             guard let data = try? JSONEncoder.elliott.encode(saved) else { return }
             let key = signingKey ?? StateGuard.existingKey() ?? StateGuard.createKey()
             signingKey = key
