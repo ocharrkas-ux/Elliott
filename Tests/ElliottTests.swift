@@ -982,4 +982,179 @@ final class ElliottTests: XCTestCase {
         let (ok, _) = try await LimitedDownload.fetch(URLRequest(url: big), maxBytes: 4 * 1024 * 1024)
         XCTAssertEqual(ok.count, 3 * 1024 * 1024)
     }
+
+    // MARK: Multi-node
+
+    func testPostQuantumHandshake() throws {
+        let a = try NodeIdentity.ephemeral(name: "a"), b = try NodeIdentity.ephemeral(name: "b")
+        let (hello, eph) = try Handshake.hello(identity: a, purpose: .member, networkID: UUID())
+        let (reply, bKeys) = try Handshake.reply(to: hello, identity: b)
+        let aKeys = try Handshake.finish(hello: hello, reply: reply, ephemeral: eph)
+        XCTAssertEqual(aKeys.sas, bKeys.sas)
+        XCTAssertEqual(aKeys.transcript, bKeys.transcript)
+
+        let ca = SecureChannel(keys: aKeys), cb = SecureChannel(keys: bKeys)
+        let r1 = try ca.seal(Data("hello".utf8)), r2 = try ca.seal(Data("again".utf8))
+        XCTAssertEqual(try cb.open(r1), Data("hello".utf8))
+        XCTAssertThrowsError(try cb.open(r1), "replayed record rejected")
+
+        // Tampered hello, wrong signer, stale hello all fail.
+        var forged = hello
+        forged.nonce = Handshake.random(32)
+        XCTAssertThrowsError(try Handshake.reply(to: forged, identity: b))
+        XCTAssertThrowsError(try Handshake.reply(to: hello, identity: b, now: Date().addingTimeInterval(600)))
+        var badReply = reply
+        badReply.node = try NodeIdentity.ephemeral(name: "mallory").info
+        XCTAssertThrowsError(try Handshake.finish(hello: hello, reply: badReply, ephemeral: eph))
+        _ = r2
+    }
+
+    func testInterceptorProducesDifferentCodes() throws {
+        // Mallory sits between a joining node and a member, running a separate handshake with each.
+        let joiner = try NodeIdentity.ephemeral(name: "new"), member = try NodeIdentity.ephemeral(name: "member")
+        let mallory = try NodeIdentity.ephemeral(name: "mallory")
+        let (h1, e1) = try Handshake.hello(identity: joiner, purpose: .join, networkID: nil)
+        let (r1, _) = try Handshake.reply(to: h1, identity: mallory)
+        let joinerKeys = try Handshake.finish(hello: h1, reply: r1, ephemeral: e1)
+        let (h2, _) = try Handshake.hello(identity: mallory, purpose: .join, networkID: nil)
+        let (_, memberKeys) = try Handshake.reply(to: h2, identity: member)
+        XCTAssertNotEqual(joinerKeys.sas, memberKeys.sas, "the two screens would show different codes")
+    }
+
+    func testMembershipRequiresValidAdmission() throws {
+        let founder = try NodeIdentity.ephemeral(name: "founder"), b = try NodeIdentity.ephemeral(name: "b")
+        let mallory = try NodeIdentity.ephemeral(name: "mallory"), c = try NodeIdentity.ephemeral(name: "c")
+        var m = try Membership.found(name: "home", by: founder)
+        m.entries.append(try MemberEntry.signed(node: b.info, networkID: m.networkID, by: founder))
+        XCTAssertEqual(Set(m.members.keys), [founder.id, b.id])
+        XCTAssertTrue(m.isMember(b.info))
+
+        // An outsider can't admit itself, claim to be a founder, or admit others.
+        var forged = m
+        forged.entries.append(try MemberEntry.signed(node: mallory.info, networkID: m.networkID, by: mallory))
+        forged.entries.append(try MemberEntry.signed(node: c.info, networkID: m.networkID, by: mallory))
+        XCTAssertEqual(Set(forged.members.keys), [founder.id, b.id])
+        // A merge drops the invalid entries entirely.
+        var merged = m
+        _ = merged.merge(forged)
+        XCTAssertEqual(merged.entries.count, 2)
+
+        // A member can admit; removal takes effect; a removed member's later admissions don't count.
+        m.entries.append(try MemberEntry.signed(node: c.info, networkID: m.networkID, by: b, at: Date().addingTimeInterval(1)))
+        XCTAssertNotNil(m.members[c.id])
+        m.entries.append(try MemberEntry.signed(node: b.info, networkID: m.networkID, by: founder, removed: true, at: Date().addingTimeInterval(2)))
+        m.entries.append(try MemberEntry.signed(node: mallory.info, networkID: m.networkID, by: b, at: Date().addingTimeInterval(3)))
+        XCTAssertNil(m.members[b.id])
+        XCTAssertNil(m.members[mallory.id])
+        XCTAssertNotNil(m.members[c.id], "earlier admissions by b stand")
+    }
+
+    @MainActor
+    func testSharedRulesAreSignedAndLastWriterWins() throws {
+        let a = try NodeIdentity.ephemeral(name: "a"), b = try NodeIdentity.ephemeral(name: "b")
+        let outsider = try NodeIdentity.ephemeral(name: "x")
+        var m = try Membership.found(name: "home", by: a)
+        m.entries.append(try MemberEntry.signed(node: b.info, networkID: m.networkID, by: a))
+        let node = MeshNode(identity: a, membership: m, sharedRules: [])
+        var rule = Rule(key: event().key, appName: "Foo", verdict: .allow, addresses: ["1.2.3.4"])
+        let v1 = try SharedRule.make(rule, by: b, at: Date())
+        XCTAssertEqual(node.merge([v1]).count, 1)
+        XCTAssertTrue(node.allSharedRules.first!.rule.addresses.isEmpty, "addresses stay node-local")
+
+        rule.verdict = .deny
+        let older = try SharedRule.make(rule, by: b, at: Date().addingTimeInterval(-60))
+        XCTAssertTrue(node.merge([older]).isEmpty, "older change ignored")
+        var tampered = try SharedRule.make(rule, by: b, at: Date().addingTimeInterval(60))
+        tampered.rule.host = "*"
+        XCTAssertTrue(node.merge([tampered]).isEmpty, "altered in transit")
+        XCTAssertTrue(node.merge([try SharedRule.make(rule, by: outsider, at: Date().addingTimeInterval(60))]).isEmpty, "not a member")
+        let newer = try SharedRule.make(rule, by: b, at: Date().addingTimeInterval(60))
+        XCTAssertEqual(node.merge([newer]).first?.rule.verdict, .deny)
+    }
+
+    func testLLMRouting() {
+        func status(_ chip: String, mem: Double, gpu: Int?, models: [String] = ["qwen2.5:3b"], queue: Int = 0, accepts: Bool = true) -> NodeStatus {
+            NodeStatus(node: UUID(), chip: chip, memoryGB: mem, cpuCores: 10, cpuLoad: 0.2, gpuUtilization: gpu,
+                       llmModels: models, llmQueue: queue, acceptsLLMWork: accepts)
+        }
+        let local = status("Apple M4", mem: 16, gpu: 10)
+        let studio = status("Apple M2 Max", mem: 64, gpu: 5)
+        let busyStudio = status("Apple M2 Max", mem: 64, gpu: 95)
+        XCTAssertEqual(LLMRouter.choose(local: local, peers: [studio], route: .automatic), studio.node)
+        XCTAssertNil(LLMRouter.choose(local: local, peers: [busyStudio], route: .automatic), "busy GPU skipped")
+        XCTAssertNil(LLMRouter.choose(local: local, peers: [status("Apple M4", mem: 16, gpu: 0)], route: .automatic), "not clearly better: stay local")
+        XCTAssertNil(LLMRouter.choose(local: local, peers: [studio], route: .local), "manual override: this Mac")
+        XCTAssertEqual(LLMRouter.choose(local: local, peers: [busyStudio], route: .node(busyStudio.node)), busyStudio.node, "manual override wins")
+        let noModel = status("Apple M4", mem: 16, gpu: 0, models: [])
+        XCTAssertEqual(LLMRouter.choose(local: noModel, peers: [status("Apple M1", mem: 8, gpu: 0)], route: .automatic) != nil, true,
+                       "a node without a model hands work to one that has it")
+        XCTAssertGreaterThan(Hardware.chipScore("Apple M2 Ultra"), Hardware.chipScore("Apple M4 Pro"))
+    }
+
+    /// Two real nodes over loopback TCP: create a network, ask to join, compare codes, approve, sync a rule,
+    /// run an LLM job remotely.
+    @MainActor
+    func testTwoNodesJoinSyncAndShareLLM() async throws {
+        let ia = try NodeIdentity.ephemeral(name: "studio"), ib = try NodeIdentity.ephemeral(name: "laptop")
+        let a = MeshNode(identity: ia, membership: nil, sharedRules: [])
+        let b = MeshNode(identity: ib, membership: nil, sharedRules: [])
+        var bApplied: [SharedRule] = []
+        b.applyRemoteRules = { bApplied += $0 }
+        a.runLLM = { system, user, _ in "studio says: \(user)" }
+        try a.createNetwork(name: "home")
+        a.start(discovery: false); b.start(discovery: false)
+        defer { a.stop(); b.stop() }
+
+        func waitFor(_ what: String, _ cond: () -> Bool) async throws {
+            for _ in 0..<100 { if cond() { return }; try await Task.sleep(for: .milliseconds(100)) }
+            XCTFail("timed out waiting for \(what)")
+        }
+        try await waitFor("listener") { a.listeningPort != nil }
+        b.join(endpoint: .hostPort(host: "127.0.0.1", port: .init(rawValue: a.listeningPort!)!), networkID: a.membership!.networkID, name: "home")
+        try await waitFor("join request") { !a.pendingJoins.isEmpty }
+        try await waitFor("joiner code") { if case .waiting = b.joinState { return true }; return false }
+        guard case .waiting(let bCode, _) = b.joinState else { return XCTFail() }
+        XCTAssertEqual(a.pendingJoins.first?.sas, bCode, "both screens show the same code")
+        XCTAssertFalse(b.isMember, "nothing is shared before approval")
+
+        try a.approve(a.pendingJoins[0])
+        try await waitFor("membership") { b.isMember }
+        try await waitFor("member link") { a.connected[ib.id] != nil && b.connected[ia.id] != nil }
+        XCTAssertEqual(Set(b.members.keys), [ia.id, ib.id])
+
+        a.publishLocal(rules: [Rule(key: event().key, appName: "Foo", verdict: .deny)])
+        try await waitFor("rule sync") { bApplied.contains { $0.rule.appName == "Foo" && $0.rule.verdict == .deny } }
+
+        let answer = try await b.remoteLLM(on: ia.id, system: "s", user: "classify this", schema: Data("{}".utf8))
+        XCTAssertEqual(answer, "studio says: classify this")
+    }
+
+    @MainActor
+    func testOutsiderCannotConnectAsMember() async throws {
+        let ia = try NodeIdentity.ephemeral(name: "studio"), outsider = try NodeIdentity.ephemeral(name: "outsider")
+        let a = MeshNode(identity: ia, membership: nil, sharedRules: [])
+        try a.createNetwork(name: "home")
+        a.start(discovery: false)
+        defer { a.stop() }
+        for _ in 0..<50 where a.listeningPort == nil { try await Task.sleep(for: .milliseconds(100)) }
+        // The outsider forges a roster that claims it's a member, and dials in as a member.
+        var fake = a.membership!
+        fake.entries.append(try MemberEntry.signed(node: outsider.info, networkID: fake.networkID, by: outsider))
+        let o = MeshNode(identity: outsider, membership: fake, sharedRules: [])
+        o.start(discovery: false)
+        defer { o.stop() }
+        o.dial(host: "127.0.0.1", port: a.listeningPort!, expecting: ia.id)
+        try await Task.sleep(for: .seconds(2))
+        XCTAssertTrue(a.connected.isEmpty, "a forged roster doesn't get a member link")
+        XCTAssertTrue(o.connected.isEmpty)
+    }
+
+    func testLockdownLetsLocalNodesReachTheMeshPort() {
+        var policy = FilterPolicy(rules: [], lockdown: true)
+        policy.meshPort = 50123
+        let pf = PFRules.generate(policy)
+        XCTAssertTrue(pf.contains("192.168.0.0/16"))
+        XCTAssertTrue(pf.contains("to any port 50123 keep state"))
+        XCTAssertFalse(PFRules.generate(FilterPolicy(rules: [], lockdown: true)).contains("50123"))
+    }
 }

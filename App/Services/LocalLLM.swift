@@ -52,6 +52,8 @@ struct LLMSettings: Codable, Equatable {
 /// the URL must be loopback.
 struct LocalLLM {
     var settings: LLMSettings
+    /// When set, completions run on another Elliott node instead of the local server.
+    var remote: (@Sendable (String, String, Data) async throws -> String)? = nil
 
     enum Failure: LocalizedError {
         case notLocal, badResponse(String)
@@ -164,6 +166,13 @@ struct LocalLLM {
     }
 
     func complete(system: String, user: String, schema: [String: Any]) async throws -> String {
+        if let remote {
+            return try await remote(system, user, try JSONSerialization.data(withJSONObject: schema))
+        }
+        return try await completeLocally(system: system, user: user, schema: schema)
+    }
+
+    func completeLocally(system: String, user: String, schema: [String: Any]) async throws -> String {
         let base = try baseURL()
         var req: URLRequest
         var body: [String: Any]

@@ -2,8 +2,15 @@ import SwiftUI
 
 enum MainSection: String, CaseIterable, Identifiable {
     case console = "connections", detections = "detections", vulns = "vulns", log = "live.log", rules = "rules", firewall = "palo_alto.sync"
+    case netOverview = "overview", netDevices = "devices", netConnections = "all.connections", netDetections = "all.detections", netVulns = "all.vulns"
     /// The List tags rows with their id, so the id must be the same type as the selection.
     var id: MainSection { self }
+    var scope: AppModel.AppScope {
+        switch self {
+        case .netOverview, .netDevices, .netConnections, .netDetections, .netVulns: .network
+        default: .machine
+        }
+    }
     var icon: String {
         switch self {
         case .console: "network"
@@ -12,6 +19,11 @@ enum MainSection: String, CaseIterable, Identifiable {
         case .log: "list.bullet.rectangle"
         case .rules: "checklist"
         case .firewall: "flame"
+        case .netOverview: "square.grid.2x2"
+        case .netDevices: "desktopcomputer.and.arrow.down"
+        case .netConnections: "point.3.connected.trianglepath.dotted"
+        case .netDetections: "exclamationmark.shield"
+        case .netVulns: "ladybug"
         }
     }
 }
@@ -23,16 +35,28 @@ struct MainView: View {
     var body: some View {
         NavigationSplitView {
             // Optional binding: the standard single-selection form for a sidebar List.
-            List(MainSection.allCases, selection: Binding<MainSection?>(get: { model.section },
-                                                                         set: { if let s = $0 { model.section = s } })) { s in
+            List(MainSection.allCases.filter { $0.scope == model.scope },
+                 selection: Binding<MainSection?>(get: { model.section }, set: { if let s = $0 { model.section = s } })) { s in
                 Label(s.rawValue, systemImage: s.icon).tag(s)
-                    .badge(s == .rules ? model.rules.count : s == .detections ? model.openFindingCount : s == .vulns ? model.openSeriousVulnCount : 0)
+                    .badge(s == .rules ? model.rules.count : s == .detections ? model.openFindingCount : s == .vulns ? model.openSeriousVulnCount
+                           : s == .netDevices ? (model.mesh?.pendingJoins.count ?? 0) : 0)
             }
             .navigationSplitViewColumnWidth(230)
             .safeAreaInset(edge: .top) {
                 VStack(alignment: .leading, spacing: 6) {
                     GlitchText(text: "ELLIOTT")
                     HStack(spacing: 4) { PromptLine(command: "./watch --all"); BlinkingCursor() }
+                    Picker("Scope", selection: Binding(get: { model.scope }, set: { s in
+                        model.scope = s
+                        if model.section.scope != s { model.section = s == .network ? .netOverview : .console }
+                    })) {
+                        ForEach(AppModel.AppScope.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden()
+                    if let n = model.mesh?.pendingJoins.count, n > 0 {
+                        Button("\(n) device\(n == 1 ? "" : "s") waiting to join") { model.scope = .network; model.section = .netDevices }
+                            .buttonStyle(.borderless).foregroundStyle(Theme.amber).font(.caption.weight(.bold))
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 14).padding(.vertical, 8)
@@ -48,6 +72,11 @@ struct MainView: View {
             case .log: LogView()
             case .rules: RulesView()
             case .firewall: FirewallView()
+            case .netOverview: NetworkOverview()
+            case .netDevices: DevicesView()
+            case .netConnections: NetworkConnectionsView()
+            case .netDetections: NetworkDetectionsView()
+            case .netVulns: NetworkVulnsView()
             }
         }
         .toolbar {

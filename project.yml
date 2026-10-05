@@ -2,7 +2,7 @@ name: Elliott
 options:
   bundleIdPrefix: com.omarcharrkas
   deploymentTarget:
-    macOS: "15.0"
+    macOS: "26.0"
   createIntermediateGroups: true
 settings:
   base:
@@ -10,7 +10,7 @@ settings:
     DEVELOPMENT_TEAM: 3JG68S88LM
     CODE_SIGN_STYLE: Automatic
     ENABLE_HARDENED_RUNTIME: YES
-    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
 
 # Elliott: app + root pf helper. Signs with any team, including a free Personal Team.
 # ElliottNE: the same app plus the per-app Network Extension content filter. Needs a paid Apple Developer

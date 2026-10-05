@@ -14,6 +14,8 @@
 	<key>LSMinimumSystemVersion</key><string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
 	<key>NSHumanReadableCopyright</key><string></string>
-	<key>NSLocalNetworkUsageDescription</key><string>Elliott talks to your Palo Alto firewall and to a local LLM server.</string>
+	<key>NSBonjourServices</key>
+	<array><string>_elliott._tcp</string></array>
+	<key>NSLocalNetworkUsageDescription</key><string>Elliott connects to the other Elliott devices on your network, your Palo Alto firewall and a local LLM server.</string>
 </dict>
 </plist>

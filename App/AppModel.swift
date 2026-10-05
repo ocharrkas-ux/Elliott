@@ -18,6 +18,7 @@ struct AppSettings: Codable, Equatable {
     var remediation = RemediationSettings()
     /// Read hostnames from DNS answers and TLS server names (needs the helper; root for packet capture).
     var captureNames = true
+    var mesh = MeshSettings()
 
     init() {}
 
@@ -36,6 +37,7 @@ struct AppSettings: Codable, Equatable {
         vuln = try c.decodeIfPresent(VulnSettings.self, forKey: .vuln) ?? d.vuln
         remediation = try c.decodeIfPresent(RemediationSettings.self, forKey: .remediation) ?? d.remediation
         captureNames = try c.decodeIfPresent(Bool.self, forKey: .captureNames) ?? d.captureNames
+        mesh = try c.decodeIfPresent(MeshSettings.self, forKey: .mesh) ?? d.mesh
     }
 }
 
@@ -223,6 +225,7 @@ final class AppModel: ObservableObject {
         }.store(in: &bag)
         Task { try? await Task.sleep(for: .seconds(20)); await runDueChecks() }
         startNameCapture()
+        setUpMesh()
 
         if hasFilterExtension { Task { await filter.refresh() } }
         helper.start()
@@ -635,6 +638,156 @@ final class AppModel: ObservableObject {
         pushPolicy()
         scheduleSave()
         if syncFirewall { scheduleFirewallSync() }
+        mesh?.publishLocal(rules: rules)
+    }
+
+    // MARK: Multi-node
+
+    @Published private(set) var mesh: MeshNode?
+    @Published var scope: AppScope = .machine
+    @Published private(set) var llmRunsOn: String = "this Mac"
+    private var localModels: [String] = []
+    private var meshBag: Set<AnyCancellable> = []
+    private var savedMembership: Membership?
+    private var savedSharedRules: [SharedRule] = []
+
+    enum AppScope: String, CaseIterable, Identifiable { case machine = "This Machine", network = "Your Network"; var id: String { rawValue } }
+
+    var nodeName: String { Host.current().localizedName ?? ProcessInfo.processInfo.hostName }
+
+    /// Creates this Mac's node (identity from the Keychain) and starts it if multi-node is on.
+    private func setUpMesh() {
+        guard mesh == nil, let identity = try? NodeIdentity.loadOrCreate(name: nodeName) else { return }
+        let node = MeshNode(identity: identity, membership: savedMembership, sharedRules: savedSharedRules)
+        node.applyRemoteRules = { [weak self] in self?.applyShared($0) }
+        node.localReport = { [weak self] in self?.localReport() ?? NodeReport(node: identity.info, hostname: "", os: "", enforcement: "", lockdown: false, profiles: [], findings: [], vulnFindings: [], componentCount: 0, decisionCount: 0) }
+        node.localStatus = { [weak self] in self?.localStatus() ?? NodeStatus(node: identity.id, chip: "", memoryGB: 0, cpuCores: 0, cpuLoad: 0, llmModels: [], llmQueue: 0, acceptsLLMWork: false) }
+        node.runLLM = { [weak self] system, user, schema in
+            guard let self else { throw URLError(.cancelled) }
+            return try await self.runLLMForPeer(system: system, user: user, schema: schema)
+        }
+        node.onChange = { [weak self] in
+            self?.objectWillChange.send()
+            self?.pushPolicy()
+            self?.scheduleSave()
+        }
+        node.onMembershipEstablished = { [weak self] in
+            guard let self else { return }
+            self.mesh?.publishLocal(rules: self.rules)
+        }
+        node.onJoinRequest = { [weak self] who, code in
+            self?.notify(id: "join-\(who.id)", title: "\(who.name) wants to join your Elliott network",
+                         body: "Approve it in Elliott → Your Network → Devices only if it shows the code \(code).", critical: true)
+        }
+        node.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &meshBag)
+        mesh = node
+        if settings.mesh.enabled { node.start() }
+        Task { [weak self] in
+            while !Task.isCancelled {
+                if let self, self.settings.llm.enabled {
+                    self.localModels = (try? await LocalLLM(settings: self.settings.llm).models()) ?? []
+                }
+                try? await Task.sleep(for: .seconds(300))
+            }
+        }
+    }
+
+    func setMeshEnabled(_ on: Bool) {
+        settings.mesh.enabled = on
+        if on { mesh?.start() } else { mesh?.stop() }
+        pushPolicy()
+    }
+
+    /// Shared rules from the network replace or remove local ones; local addresses learned for a rule are kept.
+    private func applyShared(_ list: [SharedRule]) {
+        for s in list {
+            let local = rules.first { $0.id == s.rule.id }
+            rules.removeAll { $0.id == s.rule.id }
+            if !s.deleted {
+                var r = s.rule
+                r.addresses = Array(Set((local?.addresses ?? []) + s.rule.addresses))
+                rules.append(r)
+                resolveAddresses(for: r)
+            }
+        }
+        pushPolicy()
+        scheduleSave()
+    }
+
+    func localReport() -> NodeReport {
+        let recentProfiles = profiles.values.sorted { $0.lastSeen > $1.lastSeen }.prefix(1500)
+        let shownFindings = findings.filter { $0.status == .open } + findings.filter { $0.status != .open }.suffix(200)
+        return NodeReport(node: mesh?.identity.info ?? NodeInfo(id: UUID(), name: nodeName, publicKey: Data()),
+                          hostname: nodeName, os: ProcessInfo.processInfo.operatingSystemVersionString,
+                          enforcement: backend == .filter ? "per-app filter" : backend == .packetFilter ? "packet filter" : "observe only",
+                          lockdown: settings.lockdown, profiles: Array(recentProfiles), findings: shownFindings,
+                          vulnFindings: openVulns, componentCount: components.count, decisionCount: decisions.count)
+    }
+
+    private var statusCache: (NodeStatus, Date)?
+    private var reportCache: (NodeReport, Date)?
+
+    /// Cached for 15 s (it shells out to ioreg for GPU load).
+    func localStatus() -> NodeStatus {
+        if let (s, at) = statusCache, Date().timeIntervalSince(at) < 15 { return s }
+        let s = freshLocalStatus()
+        statusCache = (s, Date())
+        return s
+    }
+
+    /// For views: rebuilt at most every 10 s.
+    func displayedLocalReport() -> NodeReport {
+        if let (r, at) = reportCache, Date().timeIntervalSince(at) < 10 { return r }
+        let r = localReport()
+        reportCache = (r, Date())
+        return r
+    }
+
+    private func freshLocalStatus() -> NodeStatus {
+        NodeStatus(node: mesh?.identity.id ?? UUID(), chip: Hardware.chip, memoryGB: Hardware.memoryGB, cpuCores: Hardware.cores,
+                   cpuLoad: Hardware.loadPerCore, gpuUtilization: Hardware.gpuUtilization(),
+                   llmModels: settings.llm.enabled && llmServerIssue == nil ? localModels : [],
+                   llmQueue: analysisQueue.count + suggestQueue.count + triageQueue.count + reachQueue.count,
+                   acceptsLLMWork: settings.mesh.shareLLM && settings.llm.enabled && llmServerIssue == nil)
+    }
+
+    /// A member asked this Mac to run an LLM job.
+    private func runLLMForPeer(system: String, user: String, schema: Data) async throws -> String {
+        guard settings.mesh.shareLLM, settings.llm.enabled else { throw MeshNode.RemoteLLMError.failed("this node isn't sharing its LLM") }
+        guard await checkLLMServer() else { throw MeshNode.RemoteLLMError.failed("this node's LLM server isn't trusted right now") }
+        let dict = (try? JSONSerialization.jsonObject(with: schema) as? [String: Any]) ?? [:]
+        return try await LocalLLM(settings: settings.llm).completeLocally(system: system, user: user, schema: dict)
+    }
+
+    /// The LLM client for the next job: local, or the best-suited node on the network (falls back to local).
+    func llmClient() -> LocalLLM {
+        var client = LocalLLM(settings: settings.llm)
+        guard let mesh, mesh.isMember else { llmRunsOn = "this Mac"; return client }
+        let peers = mesh.statuses.values.filter { $0.node != mesh.identity.id && mesh.connected[$0.node] != nil }
+        guard let target = LLMRouter.choose(local: localStatus(), peers: Array(peers), route: settings.mesh.llmRoute) else {
+            llmRunsOn = "this Mac"
+            return client
+        }
+        llmRunsOn = mesh.connected[target]?.name ?? "another node"
+        let local = settings.llm
+        client.remote = { [weak mesh] system, user, schema in
+            do {
+                guard let mesh else { throw URLError(.cancelled) }
+                return try await mesh.remoteLLM(on: target, system: system, user: user, schema: schema)
+            } catch {
+                // The node went away or refused: do it here instead.
+                let dict = (try? JSONSerialization.jsonObject(with: schema) as? [String: Any]) ?? [:]
+                return try await LocalLLM(settings: local).completeLocally(system: system, user: user, schema: dict)
+            }
+        }
+        return client
+    }
+
+    /// Whether the next job would run on this Mac (so the local server must be trusted).
+    var llmRoutesLocally: Bool {
+        guard let mesh, mesh.isMember else { return true }
+        let peers = mesh.statuses.values.filter { $0.node != mesh.identity.id && mesh.connected[$0.node] != nil }
+        return LLMRouter.choose(local: localStatus(), peers: Array(peers), route: settings.mesh.llmRoute) == nil
     }
 
     // MARK: Lockdown & approvals
@@ -667,7 +820,8 @@ final class AppModel: ObservableObject {
 
     private func pushPolicy() {
         let policy = FilterPolicy(rules: rules, lockdown: settings.lockdown,
-                                  trustAppleSigned: settings.trustAppleSigned, approvalTimeout: settings.approvalTimeout)
+                                  trustAppleSigned: settings.trustAppleSigned, approvalTimeout: settings.approvalTimeout,
+                                  meshPort: settings.mesh.enabled ? mesh?.listeningPort.map(Int.init) : nil)
         passive.interval = backend == .packetFilter && settings.lockdown ? .seconds(1) : .seconds(3)
         if filter.connected {
             filter.push(policy)
@@ -726,7 +880,8 @@ final class AppModel: ObservableObject {
         guard analysisTask == nil, settings.llm.enabled else { return }
         analysisTask = Task { [weak self] in
             while let self, self.settings.llm.enabled {
-                guard await self.checkLLMServer() else {
+                let serverOK = self.llmRoutesLocally ? await self.checkLLMServer() : true
+                guard serverOK else {
                     self.llmStatus = "LLM paused: unrecognized server on the LLM port (Settings → Local LLM)"
                     try? await Task.sleep(for: .seconds(60))
                     continue
@@ -752,7 +907,7 @@ final class AppModel: ObservableObject {
                     case .analyze:
                         self.analyzingID = id
                         self.llmStatus = "Analyzing \(p.appName) → \(p.destination)"
-                        let a = try await LocalLLM(settings: self.settings.llm).analyze(p)
+                        let a = try await self.llmClient().analyze(p)
                         self.profiles[id]?.analysis = a
                         self.llmStatus = "\(self.analyzedCount) of \(self.profiles.count) connections analyzed"
                     case .triage, .reach: break
@@ -760,7 +915,7 @@ final class AppModel: ObservableObject {
                         self.suggestingID = id
                         self.llmStatus = "Predicting your call on \(p.appName) → \(p.destination)"
                         let s = try await Advisor.suggest(p, decisions: self.learnableDecisions,
-                                                          llm: LocalLLM(settings: self.settings.llm))
+                                                          llm: self.llmClient())
                         if self.decision(for: p) == nil { self.profiles[id]?.suggestion = s }
                         self.llmStatus = "\(self.suggestionCount) suggestions ready"
                     }
@@ -1074,7 +1229,7 @@ final class AppModel: ObservableObject {
         let net = profiles.values.filter { $0.processPath == f.path }
             .map { "\($0.destination)\($0.intel.map { $0.reputation >= .suspicious ? " [\($0.reputation.label)]" : "" } ?? "")" }
         do {
-            let t = try await TriageLLM.triage(f, signature: sig, network: net, llm: LocalLLM(settings: settings.llm))
+            let t = try await TriageLLM.triage(f, signature: sig, network: net, llm: llmClient())
             if let i = findings.firstIndex(where: { $0.id == fid }) { findings[i].triage = t }
             llmStatus = "Triaged \(f.target): \(t.assessment)"
             scheduleSave()
@@ -1418,7 +1573,7 @@ final class AppModel: ObservableObject {
         reachJudgingID = id
         llmStatus = "Reachability: \(f.component.name) / \(f.vuln.id)"
         do {
-            let (verdict, why) = try await ReachabilityLLM.judge(f, llm: LocalLLM(settings: settings.llm))
+            let (verdict, why) = try await ReachabilityLLM.judge(f, llm: llmClient())
             if let i = vulnFindings.firstIndex(where: { $0.id == id }) {
                 vulnFindings[i].reachability.llmVerdict = verdict
                 vulnFindings[i].reachability.llmRationale = why
@@ -1490,6 +1645,8 @@ final class AppModel: ObservableObject {
         var components: [Component]?
         var remediations: [RemediationRecord]?
         var newVulnIDs: [String]?
+        var membership: Membership?
+        var sharedRules: [SharedRule]?
     }
 
     private var stateURL: URL { dir.appendingPathComponent("state.json") }
@@ -1522,6 +1679,8 @@ final class AppModel: ObservableObject {
         components = s.components ?? []
         remediations = s.remediations ?? []
         newVulnIDs = Set(s.newVulnIDs ?? [])
+        savedMembership = s.membership
+        savedSharedRules = s.sharedRules ?? []
         // Intel older than a week is re-checked from scratch.
         intel = Dictionary((s.intel ?? []).filter { Date().timeIntervalSince($0.checked) < 7 * 86400 }.map { ($0.ip, $0) },
                            uniquingKeysWith: { a, _ in a })
@@ -1600,7 +1759,8 @@ final class AppModel: ObservableObject {
                               decisions: decisions, intel: Array(intel.values),
                               findings: findings, edrBaseline: edrBaseline,
                               vulnFindings: vulnFindings, components: components, remediations: remediations,
-                              newVulnIDs: Array(newVulnIDs))
+                              newVulnIDs: Array(newVulnIDs),
+                              membership: mesh?.membership ?? savedMembership, sharedRules: mesh?.allSharedRules ?? savedSharedRules)
             guard let data = try? JSONEncoder.elliott.encode(saved) else { return }
             let key = signingKey ?? StateGuard.existingKey() ?? StateGuard.createKey()
             signingKey = key

@@ -46,6 +46,10 @@ enum PFRules {
         out += tables
         out += blocks
         if policy.lockdown {
+            if let port = policy.meshPort, port > 0 {
+                // Elliott nodes reach each other on the local network only (the link itself is authenticated).
+                out.append("pass in quick proto tcp from { 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 100.64.0.0/10 fc00::/7 fe80::/10 } to any port \(port) keep state")
+            }
             out += [
                 "pass out quick proto udp from any to any port { 53 67 123 5353 } keep state",
                 "pass out quick proto tcp from any to any port 53 keep state",

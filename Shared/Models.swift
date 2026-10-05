@@ -183,6 +183,8 @@ struct FilterPolicy: Codable, Sendable {
     var trustAppleSigned = true
     /// Seconds a paused connection waits for the user before it's denied.
     var approvalTimeout: Double = 60
+    /// Elliott's node port: in lockdown, other Elliott nodes on the local network must still reach it.
+    var meshPort: Int?
 }
 
 /// Sent from the filter to the app when lockdown pauses a connection.
