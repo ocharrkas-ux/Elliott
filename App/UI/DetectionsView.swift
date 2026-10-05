@@ -95,6 +95,11 @@ struct DetectionsView: View {
                     .help("Re-check launch agents/daemons, cron, login hook, shell profiles and security settings now")
             }
             ToolbarItem {
+                Button("Clear All Detections") { clearAll() }
+                    .disabled(model.findings.isEmpty)
+                    .help("Erase every detection (ones marked benign stay silenced)")
+            }
+            ToolbarItem {
                 Button { showInspector.toggle() } label: { Label("Details", systemImage: "sidebar.right") }
             }
         }
@@ -408,5 +413,16 @@ struct EDRSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+extension DetectionsView {
+    func clearAll() {
+        let open = model.openFindings.count
+        guard Confirm.run(title: "Clear all \(model.findings.count) detections?",
+                          message: "Removes every detection and its triage\(open > 0 ? ", including \(open) still open" : ""). Detections you marked benign stay silenced. Suspicious activity that is still going on will be detected again. Your rules, connections and vulnerabilities are kept. This can't be undone.",
+                          action: "Clear Detections", destructive: true) else { return }
+        selection.removeAll()
+        model.clearDetections()
     }
 }

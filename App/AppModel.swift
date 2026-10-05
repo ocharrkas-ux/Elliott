@@ -89,6 +89,69 @@ enum RuleScope: String, CaseIterable, Identifiable {
     }
 }
 
+/// Who a rule covers and where it goes, chosen separately in the console.
+struct RuleTarget: Hashable {
+    enum Who: Hashable { case app, signer, anyApp }
+    enum Dest: Hashable { case exact, fqdn, ip, domain, everywhere }
+    var who: Who
+    var dest: Dest
+
+    /// Choices that make sense for this connection.
+    static func whoOptions(_ p: Profile) -> [Who] {
+        guard p.key.direction == .outbound else { return [.app] }   // inbound stays per app
+        return p.signer.ruleKey != nil ? [.app, .signer, .anyApp] : [.app, .anyApp]
+    }
+    static func destOptions(_ p: Profile, who: Who) -> [Dest] {
+        var d: [Dest] = p.key.direction == .outbound ? [.exact] : [.exact, .ip]
+        if p.key.direction == .outbound {
+            if let h = p.hostname, !RiskHeuristics.isIPLiteral(h) { d.append(.fqdn) }
+            if RiskHeuristics.isIPLiteral(p.key.host) || !p.addresses.isEmpty { d.append(.ip) }
+            if RuleScope.domain(of: p) != nil { d.append(.domain) }
+        }
+        if who == .app { d.append(.everywhere) }   // "everything" for a signer or any app is too broad here
+        return d
+    }
+
+    static func whoTitle(_ w: Who, _ p: Profile) -> String {
+        switch w {
+        case .app: "Only \(p.appName)"
+        case .signer: "Apps signed by \(p.signer.display)"
+        case .anyApp: "Any app"
+        }
+    }
+    static func destTitle(_ d: Dest, _ p: Profile) -> String {
+        switch d {
+        case .exact: "\(p.destination) on port \(p.key.port) only"
+        case .fqdn: "\(p.hostname ?? "") (any port)"
+        case .ip: "\(ip(p)) (any port)"
+        case .domain: "*.\(RuleScope.domain(of: p) ?? "") (any port)"
+        case .everywhere: p.key.direction == .outbound ? "Any destination" : "Anyone, any port"
+        }
+    }
+    static func ip(_ p: Profile) -> String {
+        RiskHeuristics.isIPLiteral(p.key.host) ? p.key.host : (p.addresses.first ?? p.key.host)
+    }
+
+    var label: String {
+        let w = switch who { case .app: "app"; case .signer: "signer"; case .anyApp: "any app" }
+        let d = switch dest { case .exact: "dest + port"; case .fqdn: "fqdn"; case .ip: "ip"; case .domain: "domain"; case .everywhere: "everything" }
+        return "\(w) → \(d)"
+    }
+}
+
+extension RuleScope {
+    var target: RuleTarget {
+        switch self {
+        case .exact: RuleTarget(who: .app, dest: .exact)
+        case .host: RuleTarget(who: .app, dest: .ip)
+        case .domain: RuleTarget(who: .app, dest: .domain)
+        case .app: RuleTarget(who: .app, dest: .everywhere)
+        case .anyAppHost: RuleTarget(who: .anyApp, dest: .fqdn)
+        case .anyAppDomain: RuleTarget(who: .anyApp, dest: .domain)
+        }
+    }
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published private(set) var profiles: [String: Profile] = [:]
@@ -138,6 +201,8 @@ final class AppModel: ObservableObject {
     private(set) lazy var threatIntel = ThreatIntel(directory: dir)
     let edr = EDRMonitor()
     private var triageQueue: [UUID] = []
+    /// Detections the user marked benign and then cleared: they stay silenced.
+    private var suppressedFindingKeys: Set<String> = []
     private var reachQueue: [String] = []
     private let jobs = BackgroundJobs()
     let names = NameResolver()
@@ -418,27 +483,32 @@ final class AppModel: ObservableObject {
 
     func classify(_ p: Profile, _ verdict: Verdict, scope: RuleScope = .exact, expires: Date? = nil,
                   record source: Decision.Source? = .manual) {
-        if let source { record(Decision(profile: p, verdict: verdict, source: source, scope: scope.label)) }
-        var rule: Rule
-        switch scope {
-        case .exact: rule = Rule(key: p.key, appName: p.appName, verdict: verdict, addresses: p.addresses)
-        case .host: rule = Rule(appKey: p.key.appKey, appName: p.appName, direction: p.key.direction, proto: nil,
-                                host: p.key.host, port: p.key.direction == .inbound ? p.key.port : nil,
-                                verdict: verdict, addresses: p.addresses)
-        case .app: rule = Rule(appKey: p.key.appKey, appName: p.appName, direction: p.key.direction, proto: nil,
-                               host: "*", port: nil, verdict: verdict)
-        case .domain: rule = Rule(appKey: p.key.appKey, appName: p.appName, direction: .outbound, proto: nil,
-                                  host: "*.\(RuleScope.domain(of: p) ?? p.key.host)", port: nil, verdict: verdict, addresses: p.addresses)
-        case .anyAppHost: rule = Rule(appKey: "*", appName: "any app", direction: .outbound, proto: nil,
-                                      host: p.hostname ?? p.key.host, port: nil, verdict: verdict, addresses: p.addresses)
-        case .anyAppDomain: rule = Rule(appKey: "*", appName: "any app", direction: .outbound, proto: nil,
-                                        host: "*.\(RuleScope.domain(of: p) ?? p.key.host)", port: nil, verdict: verdict, addresses: p.addresses)
+        classify(p, verdict, target: scope.target, label: scope.label, expires: expires, record: source)
+    }
+
+    func classify(_ p: Profile, _ verdict: Verdict, target: RuleTarget, label: String? = nil, expires: Date? = nil,
+                  record source: Decision.Source? = .manual) {
+        if let source { record(Decision(profile: p, verdict: verdict, source: source, scope: label ?? target.label)) }
+        let outbound = p.key.direction == .outbound
+        // anyAppHost used to fall back to the IP when there was no hostname; keep that for "fqdn".
+        let host: String = switch target.dest {
+        case .exact: p.key.host
+        case .fqdn: p.hostname ?? p.key.host
+        case .ip: RuleTarget.ip(p)
+        case .domain: "*.\(RuleScope.domain(of: p) ?? p.key.host)"
+        case .everywhere: "*"
         }
+        var rule = Rule(appKey: target.who == .app ? p.key.appKey : "*",
+                        appName: target.who == .app ? p.appName : target.who == .signer ? p.signer.display : "any app",
+                        direction: p.key.direction, proto: target.dest == .exact ? p.key.proto : nil, host: host,
+                        port: target.dest == .exact || !outbound ? (target.dest == .everywhere ? nil : p.key.port) : nil,
+                        verdict: verdict, addresses: target.dest == .everywhere || target.dest == .ip ? [] : p.addresses)
+        if target.who == .signer, let key = p.signer.ruleKey { rule.signer = key }
         rule.note = p.analysis?.description
         rule.expires = expires
-        if scope == .app && backend == .packetFilter { rule.addresses = p.addresses }   // pf needs addresses
-        rules.removeAll { $0.appKey == rule.appKey && $0.direction == rule.direction && $0.proto == rule.proto
-            && $0.host == rule.host && $0.port == rule.port }
+        if target.who == .app && target.dest == .everywhere && backend == .packetFilter { rule.addresses = p.addresses }   // pf needs addresses
+        rules.removeAll { $0.appKey == rule.appKey && $0.signer == rule.signer && $0.direction == rule.direction
+            && $0.proto == rule.proto && $0.host == rule.host && $0.port == rule.port }
         rules.append(rule)
         rulesChanged()
         resolveAddresses(for: rule)
@@ -518,13 +588,13 @@ final class AppModel: ObservableObject {
 
     /// Removes the rule that currently decides this profile.
     /// Signer rules in force ("apple" or team ID → rule).
-    func signerRule(_ key: String) -> Rule? { rules.first { $0.signer == key && $0.direction == .outbound && $0.expires == nil } }
+    func signerRule(_ key: String) -> Rule? { rules.first { $0.signer == key && $0.host == "*" && $0.direction == .outbound && $0.expires == nil } }
 
     /// Allows (or blocks) outbound connections for every app with a verified signature from this developer.
     /// Inbound stays per-app: trusting a developer shouldn't open listening ports.
     func setSignerTrust(_ s: SignerInfo, _ verdict: Verdict?) {
         guard let key = s.ruleKey else { return }
-        rules.removeAll { $0.signer == key }
+        rules.removeAll { $0.signer == key && $0.host == "*" }   // signer → specific destination rules stay
         if let verdict {
             let known = profiles.values.filter { $0.key.direction == .outbound && $0.signer.ruleKey == key }.flatMap(\.addresses)
             var r = Rule(appKey: "*", appName: s.display, direction: .outbound, proto: nil, host: "*", port: nil,
@@ -606,6 +676,15 @@ final class AppModel: ObservableObject {
     }
 
     func clearLiveLog() { recent.removeAll() }
+
+    /// Removes every EDR detection. Ones marked benign stay silenced; anything still happening is detected afresh.
+    func clearDetections() {
+        suppressedFindingKeys.formUnion(findings.filter { $0.status == .benign }.map(\.key))
+        findings.removeAll()
+        triageQueue.removeAll()
+        refreshProfileEDR()
+        scheduleSave()
+    }
 
     /// The filter often only sees an IP; record what a hostname currently resolves to.
     private func resolveAddresses(for rule: Rule) {
@@ -1255,9 +1334,9 @@ final class AppModel: ObservableObject {
             .sorted { $0.severity > $1.severity }.map(\.id)
     }
 
-    private func observe(_ obs: [Observation]) {
+    func observe(_ obs: [Observation]) {
         var touchedPaths: Set<String> = []
-        for o in obs {
+        for o in obs where !suppressedFindingKeys.contains(o.key) {
             if let i = findings.firstIndex(where: { $0.key == o.key }) {
                 findings[i].lastSeen = Date()
                 findings[i].count += 1
@@ -1735,6 +1814,7 @@ final class AppModel: ObservableObject {
         var membership: Membership?
         var sharedRules: [SharedRule]?
         var scanHosts: [ScannedHost]?
+        var suppressedFindingKeys: [String]? = nil
     }
 
     private var stateURL: URL { dir.appendingPathComponent("state.json") }
@@ -1762,6 +1842,7 @@ final class AppModel: ObservableObject {
         settings = s.settings
         decisions = s.decisions ?? []
         findings = s.findings ?? []
+        suppressedFindingKeys = Set(s.suppressedFindingKeys ?? [])
         edrBaseline = s.edrBaseline ?? []
         vulnFindings = s.vulnFindings ?? []
         components = s.components ?? []
@@ -1850,7 +1931,7 @@ final class AppModel: ObservableObject {
                               vulnFindings: vulnFindings, components: components, remediations: remediations,
                               newVulnIDs: Array(newVulnIDs),
                               membership: mesh?.membership ?? savedMembership, sharedRules: mesh?.allSharedRules ?? savedSharedRules,
-                              scanHosts: scanHosts)
+                              scanHosts: scanHosts, suppressedFindingKeys: Array(suppressedFindingKeys))
             guard let data = try? JSONEncoder.elliott.encode(saved) else { return }
             let key = signingKey ?? StateGuard.existingKey() ?? StateGuard.createKey()
             signingKey = key

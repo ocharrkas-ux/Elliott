@@ -363,10 +363,17 @@ struct BulkDetail: View {
 struct ProfileDetail: View {
     @EnvironmentObject var model: AppModel
     var profile: Profile
-    @State private var scope: RuleScope = .exact
+    @State private var who: RuleTarget.Who = .app
+    @State private var dest: RuleTarget.Dest = .exact
 
     var body: some View {
         let p = profile
+        // Selections from another connection may not apply to this one.
+        let whoOpts = RuleTarget.whoOptions(p)
+        let w = whoOpts.contains(who) ? who : .app
+        let destOpts = RuleTarget.destOptions(p, who: w)
+        let d = destOpts.contains(dest) ? dest : .exact
+        let target = RuleTarget(who: w, dest: d)
         let rule = model.decision(for: p)
         let h = p.heuristic
         ScrollView {
@@ -445,13 +452,22 @@ struct ProfileDetail: View {
 
                 GroupBox("Classify") {
                     VStack(alignment: .leading, spacing: 8) {
-                        Picker("Applies to", selection: $scope) {
-                            ForEach(RuleScope.allCases.filter { $0.applies(to: p) }) { Text($0.title(for: p)).tag($0) }
+                        Picker("Who", selection: Binding(get: { w }, set: { who = $0 })) {
+                            ForEach(whoOpts, id: \.self) { Text(RuleTarget.whoTitle($0, p)).tag($0) }
+                        }
+                        Picker(p.key.direction == .outbound ? "Destination" : "From", selection: Binding(get: { d }, set: { dest = $0 })) {
+                            ForEach(destOpts, id: \.self) { Text(RuleTarget.destTitle($0, p)).tag($0) }
+                        }
+                        if w != .app && d != .exact {
+                            Text(w == .signer
+                                 ? "Covers every app with a verified signature from \(p.signer.display), and no other apps."
+                                 : "Covers every app on this Mac, signed or not.")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                         HStack {
-                            Button { model.classify(p, .allow, scope: scope) } label: { Label("Allow", systemImage: "checkmark") }
+                            Button { model.classify(p, .allow, target: target) } label: { Label("Allow", systemImage: "checkmark") }
                                 .tint(Theme.green.opacity(0.8))
-                            Button { model.classify(p, .deny, scope: scope) } label: { Label("Deny", systemImage: "xmark") }
+                            Button { model.classify(p, .deny, target: target) } label: { Label("Deny", systemImage: "xmark") }
                                 .tint(Theme.red)
                             Spacer()
                             if rule != nil { Button("Clear") { model.unclassify(p) } }

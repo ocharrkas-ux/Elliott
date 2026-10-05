@@ -1196,4 +1196,57 @@ final class ElliottTests: XCTestCase {
         close(fd)
         XCTAssertFalse(NetScanner.probe("127.0.0.1", port, timeout: 1, banner: false).open)
     }
+
+    // MARK: Rule targets and clearing detections
+
+    @MainActor
+    func testRuleTargetsForSignerAppAndAnyApp() {
+        let model = AppModel()
+        model.ingest([event()])
+        let p = model.profiles.values.first!
+        XCTAssertEqual(RuleTarget.whoOptions(p), [.app, .signer, .anyApp])
+        XCTAssertEqual(RuleTarget.destOptions(p, who: .signer), [.exact, .fqdn, .ip, .domain])
+        XCTAssertTrue(RuleTarget.destOptions(p, who: .app).contains(.everywhere))
+
+        model.classify(p, .allow, target: RuleTarget(who: .signer, dest: .fqdn))
+        model.classify(p, .allow, target: RuleTarget(who: .anyApp, dest: .ip))
+        model.classify(p, .deny, target: RuleTarget(who: .app, dest: .fqdn))
+        XCTAssertEqual(model.rules.count, 3, "same destination, different who: separate rules")
+
+        let signerRule = model.rules.first { $0.signer != nil }!
+        XCTAssertEqual(signerRule.signer, "TEAM1")
+        XCTAssertEqual(signerRule.host, "api.foo.com")
+        XCTAssertEqual(signerRule.appKey, "*")
+        XCTAssertTrue(signerRule.matches(event(app: "/Applications/Bar.app/Contents/MacOS/Bar", id: "com.bar")), "other app, same signer")
+        XCTAssertFalse(signerRule.matches(event(team: "OTHER")), "different signer")
+        XCTAssertFalse(signerRule.matches(event(host: "evil.com", ip: "9.9.9.9")), "different destination")
+
+        let ipRule = model.rules.first { $0.appKey == "*" && $0.signer == nil }!
+        XCTAssertEqual(ipRule.host, "1.2.3.4")
+        XCTAssertTrue(ipRule.matches(event(team: nil, host: nil)), "any app, even unsigned")
+        XCTAssertFalse(ipRule.matches(event(ip: "1.2.3.5")))
+
+        // Trusting/untrusting the signer as a whole leaves its destination-specific rule alone.
+        model.setSignerTrust(p.signer, .allow)
+        model.setSignerTrust(p.signer, nil)
+        XCTAssertTrue(model.rules.contains { $0.id == signerRule.id })
+
+        // The app-only deny beats the signer and any-app allows for this app.
+        XCTAssertEqual(RuleBook.decide(event(), rules: model.rules)?.verdict, .deny)
+    }
+
+    @MainActor
+    func testClearDetectionsKeepsBenignSilenced() {
+        let model = AppModel()
+        func obs(_ key: String) -> Observation {
+            Observation(key: key, draft: Draft(rule: "t", title: key, detail: "", severity: .info, category: .process, mitre: []), path: "/bin/x")
+        }
+        model.observe([obs("a"), obs("b")])
+        XCTAssertEqual(model.findings.count, 2)
+        model.setStatus([model.findings.first { $0.key == "a" }!.id], .benign)
+        model.clearDetections()
+        XCTAssertTrue(model.findings.isEmpty)
+        model.observe([obs("a"), obs("b")])
+        XCTAssertEqual(model.findings.map(\.key), ["b"], "benign stays silenced; others are detected again")
+    }
 }
