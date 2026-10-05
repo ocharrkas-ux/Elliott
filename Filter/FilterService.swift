@@ -3,7 +3,7 @@ import Network
 import NetworkExtension
 import os
 
-private let log = Logger(subsystem: BastionIDs.filterBundleID, category: "filter")
+private let log = Logger(subsystem: ElliottIDs.filterBundleID, category: "filter")
 
 /// Policy, verdicts, paused flows and the XPC link to the app. All state lives on `queue`, except `policy`,
 /// which `handleNewFlow` reads synchronously under `policyLock`.
@@ -12,7 +12,7 @@ final class FilterService: NSObject, NSXPCListenerDelegate, FilterXPC {
 
     weak var provider: NEFilterDataProvider?
 
-    private let queue = DispatchQueue(label: "bastion.filter")
+    private let queue = DispatchQueue(label: "elliott.filter")
     private let policyLock = OSAllocatedUnfairLock(initialState: FilterPolicy())
     private var listener: NSXPCListener?
     private var app: NSXPCConnection?
@@ -34,7 +34,7 @@ final class FilterService: NSObject, NSXPCListenerDelegate, FilterXPC {
     override init() {
         super.init()
         if let data = try? Data(contentsOf: policyURL),
-           let saved = try? JSONDecoder.bastion.decode(FilterPolicy.self, from: data) {
+           let saved = try? JSONDecoder.elliott.decode(FilterPolicy.self, from: data) {
             policyLock.withLock { $0 = saved }
         }
         let timer = DispatchSource.makeTimerSource(queue: queue)
@@ -46,7 +46,7 @@ final class FilterService: NSObject, NSXPCListenerDelegate, FilterXPC {
     private var flushTimer: DispatchSourceTimer?
 
     func startListening() {
-        let l = NSXPCListener(machServiceName: BastionIDs.machService)
+        let l = NSXPCListener(machServiceName: ElliottIDs.machService)
         l.delegate = self
         l.resume()
         listener = l
@@ -59,7 +59,7 @@ final class FilterService: NSObject, NSXPCListenerDelegate, FilterXPC {
         if Self.isLoopback(event.remoteAddress) { return .allow() }
 
         // Our own traffic (LLM server, firewall API) never needs approval.
-        if event.teamID == BastionIDs.teamID && event.signingID == BastionIDs.appBundleID { return .allow() }
+        if event.teamID == ElliottIDs.teamID && event.signingID == ElliottIDs.appBundleID { return .allow() }
 
         // System DNS always passes; its answers are read to learn IP → hostname.
         if event.appleSigned && event.signingID == "com.apple.mDNSResponder" && event.remotePort == 53 {
@@ -107,7 +107,7 @@ final class FilterService: NSObject, NSXPCListenerDelegate, FilterXPC {
         }
         let request = ApprovalRequest(key: key, event: event, waiting: 1, deadline: Date().addingTimeInterval(timeout))
         pending[key.id] = Pending(flows: [flow], request: request)
-        if let data = try? JSONEncoder.bastion.encode(request) { appProxy?.approvalNeeded(data) }
+        if let data = try? JSONEncoder.elliott.encode(request) { appProxy?.approvalNeeded(data) }
         queue.asyncAfter(deadline: .now() + timeout) { [weak self] in
             guard let self, let p = self.pending[key.id], p.request.deadline == request.deadline else { return }
             log.info("approval timed out for \(key.id, privacy: .public)")
@@ -166,7 +166,7 @@ final class FilterService: NSObject, NSXPCListenerDelegate, FilterXPC {
         guard !outbox.isEmpty else { return }
         let batch = outbox
         outbox.removeAll(keepingCapacity: true)
-        if let proxy = appProxy, let data = try? JSONEncoder.bastion.encode(batch) {
+        if let proxy = appProxy, let data = try? JSONEncoder.elliott.encode(batch) {
             proxy.flowsSeen(data)
         } else {
             backlog.append(contentsOf: batch)
@@ -181,8 +181,8 @@ final class FilterService: NSObject, NSXPCListenerDelegate, FilterXPC {
     }
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection c: NSXPCConnection) -> Bool {
-        // Only the Bastion app signed by our team may drive the filter.
-        c.setCodeSigningRequirement(BastionIDs.requirement(for: BastionIDs.appBundleID))
+        // Only the Elliott app signed by our team may drive the filter.
+        c.setCodeSigningRequirement(ElliottIDs.requirement(for: ElliottIDs.appBundleID))
         c.exportedInterface = NSXPCInterface(with: FilterXPC.self)
         c.exportedObject = self
         c.remoteObjectInterface = NSXPCInterface(with: AppXPC.self)
@@ -196,18 +196,18 @@ final class FilterService: NSObject, NSXPCListenerDelegate, FilterXPC {
 
     func hello(reply: @escaping (Data) -> Void) {
         queue.async {
-            let data = (try? JSONEncoder.bastion.encode(self.backlog)) ?? Data("[]".utf8)
+            let data = (try? JSONEncoder.elliott.encode(self.backlog)) ?? Data("[]".utf8)
             self.backlog.removeAll()
             reply(data)
             // Re-announce anything still waiting (the app may have restarted).
             for p in self.pending.values {
-                if let d = try? JSONEncoder.bastion.encode(p.request) { self.appProxy?.approvalNeeded(d) }
+                if let d = try? JSONEncoder.elliott.encode(p.request) { self.appProxy?.approvalNeeded(d) }
             }
         }
     }
 
     func setPolicy(_ data: Data, reply: @escaping (Bool) -> Void) {
-        guard let policy = try? JSONDecoder.bastion.decode(FilterPolicy.self, from: data) else { return reply(false) }
+        guard let policy = try? JSONDecoder.elliott.decode(FilterPolicy.self, from: data) else { return reply(false) }
         policyLock.withLock { $0 = policy }
         try? data.write(to: policyURL, options: .atomic)
         // Leaving lockdown releases everything that was waiting.

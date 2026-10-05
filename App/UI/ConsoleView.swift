@@ -15,12 +15,51 @@ struct ConsoleRow: Identifiable {
     var edrRank: Int { profile.edr?.severity.rawValue ?? -1 }
     /// Deny suggestions sort above allows, then by confidence.
     var suggestRank: Int { profile.suggestion.map { ($0.verdict == .deny ? 1000 : 0) + $0.confidence } ?? -1 }
+    var signer: SignerInfo { profile.signer }
+    var signerName: String { signer.display }
+}
+
+/// Characteristics the console can hide. Several can be on at once; the choice is remembered.
+enum HideOption: String, CaseIterable, Identifiable {
+    case allowed, denied, unclassified, appleSigned, developerSigned, unsigned, lowRisk, inbound, outbound, localNetwork
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .allowed: "Allowed"
+        case .denied: "Denied"
+        case .unclassified: "Unclassified"
+        case .appleSigned: "Signed by Apple"
+        case .developerSigned: "Signed by a developer (incl. App Store)"
+        case .unsigned: "Unsigned or ad-hoc"
+        case .lowRisk: "Low risk (under 25)"
+        case .inbound: "Inbound"
+        case .outbound: "Outbound"
+        case .localNetwork: "Local network destinations"
+        }
+    }
+
+    func hides(_ r: ConsoleRow) -> Bool {
+        let p = r.profile
+        switch self {
+        case .allowed: return r.rule?.verdict == .allow
+        case .denied: return r.rule?.verdict == .deny
+        case .unclassified: return r.rule == nil
+        case .appleSigned: return r.signer.kind == .apple
+        case .developerSigned: return r.signer.kind == .developer || r.signer.kind == .appStore
+        case .unsigned: return r.signer.kind == .unsigned || r.signer.kind == .adhoc
+        case .lowRisk: return r.risk < 25
+        case .inbound: return p.key.direction == .inbound
+        case .outbound: return p.key.direction == .outbound
+        case .localNetwork: return p.key.direction == .outbound && RiskHeuristics.isPrivate(p.key.host)
+        }
+    }
 }
 
 struct ConsoleView: View {
     enum Filter: String, CaseIterable, Identifiable {
         case all = "All", unclassified = "Unclassified", allowed = "Allowed", denied = "Denied", risky = "High risk",
-             knownBad = "Threat intel hits", processAlerts = "Process alerts (EDR)", suggested = "Has suggestion"
+             knownBad = "Threat intel hits", processAlerts = "Process alerts (EDR)", vulnerable = "Vulnerable app",
+             suggested = "Has suggestion"
         var id: String { rawValue }
     }
 
@@ -31,6 +70,32 @@ struct ConsoleView: View {
     @State private var sortOrder = [KeyPathComparator(\ConsoleRow.lastSeen, order: .reverse)]
     @State private var showInspector = true
     @State private var acceptThreshold: Int?
+    @AppStorage("console.hide") private var hideRaw = ""
+    @AppStorage("console.hideSigners") private var hideSignersRaw = ""
+
+    private var hidden: Set<HideOption> { Set(hideRaw.split(separator: ",").compactMap { HideOption(rawValue: String($0)) }) }
+    private var hiddenSigners: Set<String> { Set(hideSignersRaw.split(separator: ",").map(String.init)) }
+    private func toggle(_ o: HideOption) {
+        var h = hidden
+        if h.contains(o) { h.remove(o) } else { h.insert(o) }
+        hideRaw = h.map(\.rawValue).sorted().joined(separator: ",")
+    }
+    private func toggleSigner(_ key: String) {
+        var h = hiddenSigners
+        if h.contains(key) { h.remove(key) } else { h.insert(key) }
+        hideSignersRaw = h.sorted().joined(separator: ",")
+    }
+    /// Signers present in the console, most connections first (ad-hoc/unsigned grouped under one key).
+    private var signersPresent: [(key: String, name: String, count: Int)] {
+        var counts: [String: (String, Int)] = [:]
+        for p in model.profiles.values {
+            let s = p.signer
+            let key = s.ruleKey ?? (s.kind == .adhoc ? "~adhoc" : "~unsigned")
+            counts[key] = (s.display, (counts[key]?.1 ?? 0) + 1)
+        }
+        return counts.map { ($0.key, $0.value.0, $0.value.1) }.sorted { $0.count > $1.count }
+    }
+    private func signerKey(_ s: SignerInfo) -> String { s.ruleKey ?? (s.kind == .adhoc ? "~adhoc" : "~unsigned") }
 
     private var rows: [ConsoleRow] {
         let q = search.lowercased()
@@ -45,8 +110,10 @@ struct ConsoleView: View {
             case .knownBad: if (p.intel?.reputation ?? .unknown) < .suspicious { return nil }
             case .suggested: if p.suggestion == nil || row.rule != nil { return nil }
             case .processAlerts: if p.edr == nil { return nil }
+            case .vulnerable: if p.vuln == nil { return nil }
             }
-            if !q.isEmpty && ![p.appName, p.processPath, p.destination, p.hostname ?? "", row.summary,
+            if hidden.contains(where: { $0.hides(row) }) || hiddenSigners.contains(signerKey(row.signer)) { return nil }
+            if !q.isEmpty && ![p.appName, p.processPath, p.destination, p.hostname ?? "", row.summary, row.signerName,
                                p.addresses.joined(separator: " ")].contains(where: { $0.lowercased().contains(q) }) {
                 return nil
             }
@@ -56,6 +123,7 @@ struct ConsoleView: View {
 
     var body: some View {
         let rows = rows
+        let hiddenCount = model.profiles.count - rows.count
         Table(rows, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("Status", value: \.status) { VerdictLabel(rule: $0.rule).labelStyle(.iconOnly) }
                 .width(44)
@@ -68,6 +136,9 @@ struct ConsoleView: View {
                         .fontWeight(r.profile.intel?.reputation == .knownBad ? .bold : .regular)
                 }
             }.width(min: 120, ideal: 170)
+            TableColumn("Signed by", value: \.signerName) { r in
+                SignerCell(signer: r.signer, rule: r.signer.ruleKey.flatMap { model.signerRule($0) })
+            }.width(min: 100, ideal: 150)
             TableColumn("Connection", value: \.destination) { r in
                 HStack(spacing: 4) {
                     Image(systemName: r.profile.key.direction.symbol).foregroundStyle(.secondary)
@@ -92,13 +163,14 @@ struct ConsoleView: View {
                     Text("thinking…").foregroundStyle(Theme.dim)
                 }
             }.width(min: 80, ideal: 100)
-            TableColumn("What it's doing", value: \.summary) { r in
-                Text(r.summary.isEmpty ? (model.analyzingID == r.id ? "Analyzing…" : "—") : r.summary)
-                    .lineLimit(2).foregroundStyle(r.summary.isEmpty ? .tertiary : .primary)
+            Group {
+            TableColumn("What it's doing", value: \.summary) { (r: ConsoleRow) in
+                SummaryCell(summary: r.summary, analyzing: model.analyzingID == r.id)
             }.width(min: 200, ideal: 420)
-            TableColumn("Seen", value: \.count) { Text("\($0.count)").monospacedDigit() }.width(50)
-            TableColumn("Last", value: \.lastSeen) { Text($0.lastSeen, style: .relative).foregroundStyle(.secondary) }
+            TableColumn("Seen", value: \.count) { (r: ConsoleRow) in Text(String(r.count)).monospacedDigit() }.width(50)
+            TableColumn("Last", value: \.lastSeen) { (r: ConsoleRow) in Text(r.lastSeen, style: .relative).foregroundStyle(.secondary) }
                 .width(90)
+            }
         }
         .contextMenu(forSelectionType: String.self) { ids in
             let ps = ids.compactMap { model.profiles[$0] }
@@ -108,6 +180,18 @@ struct ConsoleView: View {
             let suggested = ps.filter { $0.suggestion != nil && model.decision(for: $0) == nil }
             if !suggested.isEmpty {
                 Button("Accept Suggestion\(suggested.count == 1 ? "" : "s (\(suggested.count))")") { model.acceptSuggestions(suggested.map(\.id)) }
+            }
+            let signers = Dictionary(grouping: ps.map(\.signer).filter { $0.ruleKey != nil }, by: { $0.ruleKey! }).compactMap { $0.value.first }
+            if !signers.isEmpty {
+                Divider()
+                ForEach(signers, id: \.self) { s in
+                    if let r = model.signerRule(s.ruleKey!) {
+                        Button("Remove \(r.verdict == .allow ? "Trust" : "Block") for \(s.display)") { model.setSignerTrust(s, nil) }
+                    } else {
+                        Button("Trust Everything Signed by \(s.display)") { model.setSignerTrust(s, .allow) }
+                        Button("Block Everything Signed by \(s.display)") { model.setSignerTrust(s, .deny) }
+                    }
+                }
             }
             Divider()
             Button("Re-analyze with LLM") { model.reanalyze(Array(ids)) }
@@ -132,6 +216,26 @@ struct ConsoleView: View {
                 } label: { Label("Suggestions", systemImage: "wand.and.stars") }
             }
             ToolbarItem {
+                Menu {
+                    Section("Hide connections that are") {
+                        ForEach(HideOption.allCases) { o in
+                            Toggle(o.label, isOn: Binding(get: { hidden.contains(o) }, set: { _ in toggle(o) }))
+                        }
+                    }
+                    Section("Hide signers") {
+                        ForEach(signersPresent, id: \.key) { s in
+                            Toggle("\(s.name) (\(s.count))", isOn: Binding(get: { hiddenSigners.contains(s.key) }, set: { _ in toggleSigner(s.key) }))
+                        }
+                    }
+                    Divider()
+                    Button("Show Everything") { hideRaw = ""; hideSignersRaw = "" }.disabled(hidden.isEmpty && hiddenSigners.isEmpty)
+                } label: {
+                    Label(hidden.isEmpty && hiddenSigners.isEmpty ? "Hide" : "Hide (\(hidden.count + hiddenSigners.count))",
+                          systemImage: hidden.isEmpty && hiddenSigners.isEmpty ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                }
+                .help("Hide connections by decision, signer, risk, direction…")
+            }
+            ToolbarItem {
                 Picker("Show", selection: $filter) { ForEach(Filter.allCases) { Text($0.rawValue).tag($0) } }
                     .pickerStyle(.menu)
             }
@@ -153,6 +257,19 @@ struct ConsoleView: View {
             .inspectorColumnWidth(min: 300, ideal: 360, max: 520)
         }
         .navigationTitle("connections")
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if hiddenCount > 0 && !(hidden.isEmpty && hiddenSigners.isEmpty && filter == .all && search.isEmpty) {
+                HStack {
+                    Image(systemName: "eye.slash")
+                    Text("\(hiddenCount) of \(model.profiles.count) connections hidden by filters")
+                    Spacer()
+                    Button("Show Everything") { hideRaw = ""; hideSignersRaw = ""; filter = .all; search = "" }.buttonStyle(.bordered)
+                }
+                .font(.caption).foregroundStyle(Theme.dim)
+                .padding(.horizontal, 14).padding(.vertical, 6)
+                .background(.bar)
+            }
+        }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
             let serious = model.openSeriousCount
@@ -250,6 +367,26 @@ struct ProfileDetail: View {
 
                 IntelBox(profile: p)
 
+                let appVulns = model.openVulns.filter { ($0.component.kind == .app || $0.component.kind == .homebrew)
+                    && p.processPath.hasPrefix($0.component.location + "/") }.sorted { $0.priority > $1.priority }
+                if !appVulns.isEmpty {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(appVulns.prefix(5)) { v in
+                                HStack(alignment: .firstTextBaseline) {
+                                    SeverityBadge(severity: v.severity)
+                                    Text(v.vuln.cve ?? v.vuln.id).font(.callout.monospaced())
+                                    if v.kev { Image(systemName: "flame.fill").foregroundStyle(Theme.red) }
+                                    Spacer()
+                                    if let fix = v.vuln.fixedVersions.first { Text("fix \(fix)").font(.caption).foregroundStyle(Theme.green) }
+                                }
+                            }
+                            if appVulns.count > 5 { Text("and \(appVulns.count - 5) more").font(.caption).foregroundStyle(Theme.dim) }
+                            Button("Open in Vulns") { model.section = .vulns }
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
+                    } label: { Label("Known vulnerabilities in \(p.appName)", systemImage: "ladybug") }
+                }
+
                 let procFindings = model.findings(forPath: p.processPath)
                 if !procFindings.isEmpty {
                     GroupBox {
@@ -300,8 +437,26 @@ struct ProfileDetail: View {
                         }
                         .buttonStyle(.borderedProminent)
                         if let rule {
-                            Text("Decided by rule: \(rule.verdict.rawValue) \(rule.appName) → \(rule.host)\(rule.port.map { ":\($0)" } ?? "")")
+                            Text("Decided by rule: \(rule.sentence)")
                                 .font(.caption).foregroundStyle(.secondary)
+                        }
+                        let s = p.signer
+                        if s.ruleKey != nil {
+                            Divider()
+                            HStack {
+                                Image(systemName: "signature")
+                                Text(s.display).fontWeight(.semibold)
+                                Spacer()
+                                if let r = model.signerRule(s.ruleKey!) {
+                                    Text(r.verdict == .allow ? "trusted" : "blocked").foregroundStyle(r.verdict == .allow ? Theme.green : Theme.red)
+                                    Button("Remove") { model.setSignerTrust(s, nil) }
+                                } else {
+                                    Button("Trust Signer") { model.setSignerTrust(s, .allow) }
+                                        .help("Allow outbound connections from every app with a verified signature from \(s.display)")
+                                    Button("Block Signer") { model.setSignerTrust(s, .deny) }
+                                }
+                            }
+                            .font(.callout)
                         }
                     }.padding(4)
                 }
@@ -309,7 +464,7 @@ struct ProfileDetail: View {
                 GroupBox("Details") {
                     Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
                         row("Path", p.processPath)
-                        row("Signature", p.appleSigned ? "Apple" : p.teamID.map { "Team \($0)" } ?? "Unsigned / ad-hoc")
+                        row("Signed by", p.signer.display + (p.teamID.map { " · team \($0)" } ?? ""))
                         row("Identifier", p.signingID ?? "—")
                         row("Direction", p.key.direction.rawValue)
                         row("Protocol", p.key.proto.rawValue.uppercased())
@@ -331,6 +486,41 @@ struct ProfileDetail: View {
         GridRow {
             Text(k).foregroundStyle(.secondary)
             Text(v).textSelection(.enabled).lineLimit(8)
+        }
+    }
+}
+
+struct SignerCell: View {
+    var signer: SignerInfo
+    var rule: Rule?
+    var body: some View {
+        HStack(spacing: 4) {
+            if let t = rule {
+                Image(systemName: t.verdict == .allow ? "checkmark.seal.fill" : "xmark.seal.fill")
+                    .foregroundStyle(t.verdict == .allow ? Theme.green : Theme.red)
+                    .help(t.verdict == .allow ? "Trusted signer" : "Blocked signer")
+            }
+            Text(signer.display).lineLimit(1).foregroundStyle(color)
+        }
+        .help(signer.teamID.map { "Team ID \($0)" } ?? (signer.kind == .apple ? "Apple platform signature" : "No verified developer signature"))
+    }
+    private var color: Color {
+        switch signer.kind {
+        case .unsigned, .adhoc: Theme.amber
+        case .apple: Theme.dim
+        default: .primary
+        }
+    }
+}
+
+struct SummaryCell: View {
+    var summary: String
+    var analyzing: Bool
+    var body: some View {
+        if summary.isEmpty {
+            Text(analyzing ? "Analyzing…" : "—").foregroundStyle(.tertiary)
+        } else {
+            Text(summary).lineLimit(2)
         }
     }
 }

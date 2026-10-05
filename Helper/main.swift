@@ -1,18 +1,18 @@
 import Foundation
 import os
 
-// Bastion's privileged helper: a root LaunchDaemon (registered by the app with SMAppService) that owns the
-// pf anchor com.apple/250.Bastion. It takes a structured policy, never raw pf text, and re-applies the last
+// Elliott's privileged helper: a root LaunchDaemon (registered by the app with SMAppService) that owns the
+// pf anchor com.apple/250.Elliott. It takes a structured policy, never raw pf text, and re-applies the last
 // policy at boot so enforcement doesn't depend on the app running.
 
-private let log = Logger(subsystem: BastionIDs.helperLabel, category: "helper")
+private let log = Logger(subsystem: ElliottIDs.helperLabel, category: "helper")
 
 final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
-    private let dir = URL(fileURLWithPath: "/Library/Application Support/Bastion", isDirectory: true)
+    private let dir = URL(fileURLWithPath: "/Library/Application Support/Elliott", isDirectory: true)
     private var policyURL: URL { dir.appendingPathComponent("policy.json") }
     private var rulesURL: URL { dir.appendingPathComponent("pf.rules") }
     private var token: String?
-    private let queue = DispatchQueue(label: "bastion.helper")
+    private let queue = DispatchQueue(label: "elliott.helper")
 
     override init() {
         super.init()
@@ -24,7 +24,7 @@ final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
     }
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection c: NSXPCConnection) -> Bool {
-        c.setCodeSigningRequirement(BastionIDs.requirement(for: BastionIDs.appBundleID))
+        c.setCodeSigningRequirement(ElliottIDs.requirement(for: ElliottIDs.appBundleID))
         c.exportedInterface = NSXPCInterface(with: HelperXPC.self)
         c.exportedObject = self
         c.resume()
@@ -50,17 +50,21 @@ final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
     }
 
     func processes(reply: @escaping (Data) -> Void) {
-        reply((try? JSONEncoder.bastion.encode(ProcessTable.snapshot(withArgs: true))) ?? Data("[]".utf8))
+        reply((try? JSONEncoder.elliott.encode(ProcessTable.snapshot(withArgs: true))) ?? Data("[]".utf8))
     }
 
-    func terminate(pid: Int32, reply: @escaping (String?) -> Void) {
+    func terminate(pid: Int32, startedAt: Double, reply: @escaping (String?) -> Void) {
         // Never launchd, the kernel, or ourselves.
         guard pid > 1, pid != getpid() else { return reply("refusing to kill pid \(pid)") }
+        // Re-check here too: the id may have been reused since the app looked.
+        guard ProcessTable.isSameProcess(pid, startedAt: Date(timeIntervalSince1970: startedAt)) else {
+            return reply("process \(pid) has exited; its id now belongs to a different process")
+        }
         reply(kill(pid, SIGKILL) == 0 ? nil : String(cString: strerror(errno)))
     }
 
     private func applyNow(_ data: Data) -> String? {
-        guard let policy = try? JSONDecoder.bastion.decode(FilterPolicy.self, from: data) else { return "bad policy" }
+        guard let policy = try? JSONDecoder.elliott.decode(FilterPolicy.self, from: data) else { return "bad policy" }
         let rules = PFRules.generate(policy)
         do {
             try Data(rules.utf8).write(to: rulesURL, options: .atomic)
@@ -94,7 +98,7 @@ final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
 }
 
 let helper = Helper()
-let listener = NSXPCListener(machServiceName: BastionIDs.helperLabel)
+let listener = NSXPCListener(machServiceName: ElliottIDs.helperLabel)
 listener.delegate = helper
 listener.resume()
 dispatchMain()

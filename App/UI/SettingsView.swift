@@ -6,6 +6,7 @@ struct SettingsView: View {
             FilterSettings().tabItem { Label("Filter", systemImage: "shield") }
             LLMSettingsView().tabItem { Label("Local LLM", systemImage: "cpu") }
             EDRSettingsView().tabItem { Label("EDR", systemImage: "exclamationmark.shield") }
+            VulnSettingsView().tabItem { Label("Vulnerabilities", systemImage: "ladybug") }
             IntelSettingsView().tabItem { Label("Threat Intel", systemImage: "globe.badge.chevron.backward") }
             PaloAltoSettings().tabItem { Label("Palo Alto", systemImage: "flame") }
         }
@@ -28,7 +29,7 @@ struct FilterSettings: View {
                     Button("Remove Helper") { Task { await model.helper.uninstall() } }
                         .disabled(model.helper.status == .notRegistered)
                 }
-                Text("A small root helper loads Bastion's rules into the macOS packet filter (anchor \(PFRules.anchor)). It enforces by address and port, so a rule applies to every app using that destination. In lockdown, new outbound TCP handshakes are held until you approve them. UDP to unapproved destinations is dropped (apps fall back to TCP). Rules stay enforced when the app is closed and after restart.")
+                Text("A small root helper loads Elliott's rules into the macOS packet filter (anchor \(PFRules.anchor)). It enforces by address and port, so a rule applies to every app using that destination. In lockdown, new outbound TCP handshakes are held until you approve them. UDP to unapproved destinations is dropped (apps fall back to TCP). Rules stay enforced when the app is closed and after restart.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if model.hasFilterExtension {
@@ -48,7 +49,7 @@ struct FilterSettings: View {
                 Toggle("Let Apple-signed system software through without asking", isOn: $model.settings.trustAppleSigned)
                 Stepper("Deny unanswered requests after \(Int(model.settings.approvalTimeout)) s",
                         value: $model.settings.approvalTimeout, in: 10...600, step: 10)
-                Text("If Bastion isn't running during lockdown, connections without a rule are denied (including Apple software, under the pf helper).")
+                Text("If Elliott isn't running during lockdown, connections without a rule are denied (including Apple software, under the pf helper).")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

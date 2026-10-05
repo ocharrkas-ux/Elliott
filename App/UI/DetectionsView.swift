@@ -220,8 +220,13 @@ struct FindingDetail: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             if f.pid != nil, f.category != .persistence, f.category != .posture {
-                                Button { confirmKill = true } label: { Label("Kill Process", systemImage: "xmark.octagon") }
-                                    .tint(Theme.red).buttonStyle(.borderedProminent)
+                                if model.isRunning(f) {
+                                    Button { confirmKill = true } label: { Label("Kill Process", systemImage: "xmark.octagon") }
+                                        .tint(Theme.red).buttonStyle(.borderedProminent)
+                                } else {
+                                    Label("Process has exited", systemImage: "checkmark.circle").foregroundStyle(Theme.dim)
+                                        .help("Pid \(f.pid!) no longer belongs to the detected process, so there's nothing to kill.")
+                                }
                             }
                             if let p = f.path, f.category != .posture {
                                 let apple = model.edr.identity(p).appleSigned

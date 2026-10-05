@@ -17,10 +17,12 @@ struct Profile: Codable, Identifiable, Hashable {
     var analysis: Analysis?
     /// OSINT verdict on the remote IPs (outbound) or peers (inbound).
     var intel: IntelSummary?
-    /// What Bastion thinks the user would decide, once it has learned enough.
+    /// What Elliott thinks the user would decide, once it has learned enough.
     var suggestion: Suggestion?
     /// Open EDR findings on the program behind this connection.
     var edr: EDRSummary?
+    /// Known vulnerabilities in the app behind this connection.
+    var vuln: VulnSummary?
 
     var processName: String { (processPath as NSString).lastPathComponent }
     /// The app bundle name for helpers inside an .app ("Google Chrome" for "Google Chrome Helper").
@@ -64,6 +66,12 @@ struct Profile: Codable, Identifiable, Hashable {
                   remotePort: key.direction == .inbound ? 0 : key.port,
                   remoteHostname: key.direction == .inbound ? nil : hostname, outcome: .observed)
     }
+}
+
+struct VulnSummary: Codable, Hashable {
+    var maxScore: Double
+    var count: Int
+    var kev: Bool
 }
 
 struct EDRSummary: Codable, Hashable {

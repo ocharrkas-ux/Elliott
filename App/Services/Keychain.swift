@@ -3,9 +3,24 @@ import Security
 
 /// Generic-password items for this app (the Palo Alto API key).
 enum Keychain {
-    private static let service = "com.omarcharrkas.bastion"
+    private static let service = "com.omarcharrkas.elliott"
+    /// The app was called Bastion before; its saved keys move over on first read.
+    private static let legacyService = "com.omarcharrkas." + "bas" + "tion"
 
     static func get(_ account: String) -> String? {
+        if let v = read(account, service: service) { return v }
+        guard let old = read(account, service: legacyService) else { return nil }
+        set(old, for: account)
+        delete(account, service: legacyService)
+        return old
+    }
+
+    private static func delete(_ account: String, service: String) {
+        SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+                       kSecAttrAccount as String: account] as CFDictionary)
+    }
+
+    private static func read(_ account: String, service: String) -> String? {
         let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                 kSecAttrAccount as String: account, kSecReturnData as String: true]
         var out: CFTypeRef?

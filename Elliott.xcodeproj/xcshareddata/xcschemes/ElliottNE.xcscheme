@@ -15,24 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "9B01AECAD5CF01F25EEA8535"
-               BuildableName = "Bastion.app"
-               BlueprintName = "Bastion"
-               ReferencedContainer = "container:Bastion.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "D4CDB9F4A7A8061C2AA588D7"
-               BuildableName = "BastionTests.xctest"
-               BlueprintName = "BastionTests"
-               ReferencedContainer = "container:Bastion.xcodeproj">
+               BlueprintIdentifier = "B81069C6D14832327E3F3E2B"
+               BuildableName = "ElliottNE.app"
+               BlueprintName = "ElliottNE"
+               ReferencedContainer = "container:Elliott.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -46,27 +32,14 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "9B01AECAD5CF01F25EEA8535"
-            BuildableName = "Bastion.app"
-            BlueprintName = "Bastion"
-            ReferencedContainer = "container:Bastion.xcodeproj">
+            BlueprintIdentifier = "B81069C6D14832327E3F3E2B"
+            BuildableName = "ElliottNE.app"
+            BlueprintName = "ElliottNE"
+            ReferencedContainer = "container:Elliott.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "D4CDB9F4A7A8061C2AA588D7"
-               BuildableName = "BastionTests.xctest"
-               BlueprintName = "BastionTests"
-               ReferencedContainer = "container:Bastion.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
-      <CommandLineArguments>
-      </CommandLineArguments>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -82,10 +55,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "9B01AECAD5CF01F25EEA8535"
-            BuildableName = "Bastion.app"
-            BlueprintName = "Bastion"
-            ReferencedContainer = "container:Bastion.xcodeproj">
+            BlueprintIdentifier = "B81069C6D14832327E3F3E2B"
+            BuildableName = "ElliottNE.app"
+            BlueprintName = "ElliottNE"
+            ReferencedContainer = "container:Elliott.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -99,10 +72,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "9B01AECAD5CF01F25EEA8535"
-            BuildableName = "Bastion.app"
-            BlueprintName = "Bastion"
-            ReferencedContainer = "container:Bastion.xcodeproj">
+            BlueprintIdentifier = "B81069C6D14832327E3F3E2B"
+            BuildableName = "ElliottNE.app"
+            BlueprintName = "ElliottNE"
+            ReferencedContainer = "container:Elliott.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

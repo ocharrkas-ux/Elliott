@@ -6,14 +6,14 @@
 	<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-	<key>CFBundleName</key><string>Bastion</string>
-	<key>CFBundleDisplayName</key><string>Bastion</string>
+	<key>CFBundleName</key><string>Elliott</string>
+	<key>CFBundleDisplayName</key><string>Elliott</string>
 	<key>CFBundlePackageType</key><string>APPL</string>
 	<key>CFBundleShortVersionString</key><string>1.0</string>
 	<key>CFBundleVersion</key><string>1</string>
 	<key>LSMinimumSystemVersion</key><string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
 	<key>NSHumanReadableCopyright</key><string></string>
-	<key>NSLocalNetworkUsageDescription</key><string>Bastion talks to your Palo Alto firewall and to a local LLM server.</string>
+	<key>NSLocalNetworkUsageDescription</key><string>Elliott talks to your Palo Alto firewall and to a local LLM server.</string>
 </dict>
 </plist>

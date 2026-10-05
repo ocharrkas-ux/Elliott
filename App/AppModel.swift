@@ -12,6 +12,8 @@ struct AppSettings: Codable, Equatable {
     var intel = IntelSettings()
     var suggestionsEnabled = true
     var edr = EDRSettings()
+    var vuln = VulnSettings()
+    var remediation = RemediationSettings()
 
     init() {}
 
@@ -27,6 +29,8 @@ struct AppSettings: Codable, Equatable {
         intel = try c.decodeIfPresent(IntelSettings.self, forKey: .intel) ?? d.intel
         suggestionsEnabled = try c.decodeIfPresent(Bool.self, forKey: .suggestionsEnabled) ?? d.suggestionsEnabled
         edr = try c.decodeIfPresent(EDRSettings.self, forKey: .edr) ?? d.edr
+        vuln = try c.decodeIfPresent(VulnSettings.self, forKey: .vuln) ?? d.vuln
+        remediation = try c.decodeIfPresent(RemediationSettings.self, forKey: .remediation) ?? d.remediation
     }
 }
 
@@ -61,7 +65,19 @@ final class AppModel: ObservableObject {
     @Published private(set) var findings: [Finding] = []
     @Published private(set) var processes: [ProcInfo] = []
     @Published private(set) var launchItems: [LaunchItem] = []
-    @Published private(set) var triagingID: UUID?   // bumps when feeds reload, for the settings view
+    @Published private(set) var triagingID: UUID?
+    @Published private(set) var vulnFindings: [VulnFinding] = []
+    @Published private(set) var components: [Component] = []
+    @Published private(set) var vulnScanning = false
+    @Published private(set) var vulnProgress: (String, Double) = ("", 0)
+    @Published private(set) var vulnErrors: [String] = []
+    @Published private(set) var reachJudgingID: String?
+    @Published private(set) var remediations: [RemediationRecord] = []
+    @Published private(set) var remediating = false
+    @Published private(set) var remediationLog: [String] = []
+    @Published var nvdKey: String = Keychain.get("nvd-api-key") ?? "" {
+        didSet { Keychain.set(nvdKey, for: "nvd-api-key") }
+    }   // bumps when feeds reload, for the settings view
     @Published private(set) var llmStatus = "Waiting for connections"
     @Published private(set) var syncReport: SyncReport?
     @Published private(set) var syncing = false
@@ -81,6 +97,8 @@ final class AppModel: ObservableObject {
     private(set) lazy var threatIntel = ThreatIntel(directory: dir)
     let edr = EDRMonitor()
     private var triageQueue: [UUID] = []
+    private var reachQueue: [String] = []
+    private(set) lazy var vulnDB = VulnDB(directory: dir)
     private var edrBaseline: [String] = []
     private var analysisTask: Task<Void, Never>?
     private var saveTask: Task<Void, Never>?
@@ -92,7 +110,7 @@ final class AppModel: ObservableObject {
     /// The Network Extension filter (per-app, if this build has it) wins; else the pf helper; else observe only.
     var backend: Backend { filter.connected ? .filter : helper.connected ? .packetFilter : .none }
     var enforcing: Bool { backend != .none }
-    /// Only the BastionNE build (paid developer team) is entitled to run the content-filter system extension.
+    /// Only the ElliottNE build (paid developer team) is entitled to run the content-filter system extension.
     let hasFilterExtension: Bool = {
         guard let task = SecTaskCreateFromSelf(nil) else { return false }
         let value = SecTaskCopyValueForEntitlement(task, "com.apple.developer.networking.networkextension" as CFString, nil)
@@ -100,8 +118,13 @@ final class AppModel: ObservableObject {
     }()
 
     init() {
-        dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Bastion", isDirectory: true)
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        dir = support.appendingPathComponent("Elliott", isDirectory: true)
+        // Data saved while the app was called Bastion moves over once.
+        let legacy = support.appendingPathComponent("Bas" + "tion", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path), FileManager.default.fileExists(atPath: legacy.path) {
+            try? FileManager.default.moveItem(at: legacy, to: dir)
+        }
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         load()
 
@@ -130,6 +153,9 @@ final class AppModel: ObservableObject {
         }.store(in: &bag)
         Task { await refreshIntel() }
         startEDR()
+        Timer.publish(every: 3600, on: .main, in: .common).autoconnect().sink { [weak self] _ in self?.autoScanIfDue() }
+            .store(in: &bag)
+        Task { try? await Task.sleep(for: .seconds(20)); autoScanIfDue() }
 
         if hasFilterExtension { Task { await filter.refresh() } }
         helper.start()
@@ -171,10 +197,10 @@ final class AppModel: ObservableObject {
     /// pf lockdown is holding this handshake. Learn the IP for an existing allow rule, auto-allow trusted Apple
     /// software, or ask the user.
     private func heldByPacketFilter(_ e: FlowEvent) {
-        if e.teamID == BastionIDs.teamID && e.signingID == BastionIDs.appBundleID {
-            // Bastion's own traffic (threat feeds, firewall API): never ask about it.
-            var r = Rule(key: e.key, appName: "Bastion", verdict: .allow, addresses: [e.remoteAddress])
-            r.note = "Bastion's own traffic"
+        if e.teamID == ElliottIDs.teamID && e.signingID == ElliottIDs.appBundleID {
+            // Elliott's own traffic (threat feeds, firewall API): never ask about it.
+            var r = Rule(key: e.key, appName: "Elliott", verdict: .allow, addresses: [e.remoteAddress])
+            r.note = "Elliott's own traffic"
             rules.append(r)
             rulesChanged(syncFirewall: false)
             return
@@ -228,7 +254,27 @@ final class AppModel: ObservableObject {
     }
 
     /// Removes the rule that currently decides this profile.
-    /// Accepts Bastion's suggestion for these profiles.
+    /// Signer rules in force ("apple" or team ID → rule).
+    func signerRule(_ key: String) -> Rule? { rules.first { $0.signer == key && $0.direction == .outbound && $0.expires == nil } }
+
+    /// Allows (or blocks) outbound connections for every app with a verified signature from this developer.
+    /// Inbound stays per-app: trusting a developer shouldn't open listening ports.
+    func setSignerTrust(_ s: SignerInfo, _ verdict: Verdict?) {
+        guard let key = s.ruleKey else { return }
+        rules.removeAll { $0.signer == key }
+        if let verdict {
+            let known = profiles.values.filter { $0.key.direction == .outbound && $0.signer.ruleKey == key }.flatMap(\.addresses)
+            var r = Rule(appKey: "*", appName: s.display, direction: .outbound, proto: nil, host: "*", port: nil,
+                         verdict: verdict, addresses: Array(Set(known)))
+            r.signer = key
+            r.note = verdict == .allow ? "Trusted signer\(s.teamID.map { " (team \($0))" } ?? "")" : "Blocked signer"
+            rules.append(r)
+            record(Decision(rule: r, verdict: verdict, source: .manual))
+        }
+        rulesChanged()
+    }
+
+    /// Accepts Elliott's suggestion for these profiles.
     func acceptSuggestions(_ ids: [String]) {
         for id in ids {
             guard let p = profiles[id], let s = p.suggestion else { continue }
@@ -383,7 +429,7 @@ final class AppModel: ObservableObject {
         pumpAnalysis()
     }
 
-    private enum Job { case analyze(String), suggest(String), triage(UUID) }
+    private enum Job { case analyze(String), suggest(String), triage(UUID), reach(String) }
 
     /// Analysis first (it feeds suggestions), then suggestions for unclassified connections.
     private func nextJob() -> Job? {
@@ -391,6 +437,10 @@ final class AppModel: ObservableObject {
         while let id = triageQueue.first {
             triageQueue.removeFirst()
             if let f = findings.first(where: { $0.id == id }), f.triage == nil, f.status == .open { return .triage(id) }
+        }
+        while let id = reachQueue.first {
+            reachQueue.removeFirst()
+            if let f = vulnFindings.first(where: { $0.id == id }), f.reachability.llmVerdict == nil, f.status == .open { return .reach(id) }
         }
         if !analysisQueue.isEmpty { return .analyze(analysisQueue.removeFirst()) }
         if suggestQueue.isEmpty { refillSuggestions() }
@@ -409,11 +459,15 @@ final class AppModel: ObservableObject {
                     await self.runTriage(fid)
                     continue
                 }
+                if case .reach(let vid) = job {
+                    await self.runReachJudge(vid)
+                    continue
+                }
                 let id: String, failKey: String
                 switch job {
                 case .analyze(let i): id = i; failKey = i
                 case .suggest(let i): id = i; failKey = "s:" + i
-                case .triage: continue
+                case .triage, .reach: continue
                 }
                 guard let p = self.profiles[id] else { continue }
                 do {
@@ -424,7 +478,7 @@ final class AppModel: ObservableObject {
                         let a = try await LocalLLM(settings: self.settings.llm).analyze(p)
                         self.profiles[id]?.analysis = a
                         self.llmStatus = "\(self.analyzedCount) of \(self.profiles.count) connections analyzed"
-                    case .triage: break
+                    case .triage, .reach: break
                     case .suggest:
                         self.suggestingID = id
                         self.llmStatus = "Predicting your call on \(p.appName) → \(p.destination)"
@@ -631,12 +685,12 @@ final class AppModel: ObservableObject {
             if let i = findings.firstIndex(where: { $0.key == o.key }) {
                 findings[i].lastSeen = Date()
                 findings[i].count += 1
-                if let p = o.process { findings[i].pid = p.pid }
+                if let p = o.process { findings[i].pid = p.pid; findings[i].processStart = p.start }
                 continue
             }
             var f = Finding(key: o.key, rule: o.draft.rule, title: o.draft.title, detail: o.draft.detail,
                             severity: o.draft.severity, category: o.draft.category, mitre: o.draft.mitre,
-                            path: o.path, pid: o.process?.pid, commandLine: o.process?.commandLine,
+                            path: o.path, pid: o.process?.pid, processStart: o.process?.start, commandLine: o.process?.commandLine,
                             user: o.process.map { ProcessTable.userName($0.uid) },
                             chain: o.chain.map { "\($0.displayName) (\($0.pid))" }, evidence: o.draft.evidence)
             if let p = o.process {
@@ -715,12 +769,22 @@ final class AppModel: ObservableObject {
     /// Kills the process behind a finding: directly for the user's own processes, through the helper otherwise.
     func kill(_ f: Finding) async -> String? {
         guard let pid = f.pid, pid > 1 else { return "No process id recorded." }
-        guard let current = ProcessTable.path(pid), current == f.path else {
-            return "Process \(pid) has already exited (or the id now belongs to another program)."
+        guard let start = f.processStart else {
+            return "This detection predates start-time tracking, so Elliott can't confirm pid \(pid) is still the same process. Not killing it."
+        }
+        // Process ids are reused: only kill if this pid is still the process that was detected.
+        guard isRunning(f) else {
+            return "Process \(pid) has exited. Its id now belongs to a different process (or none), so nothing was killed."
         }
         if Darwin.kill(pid, SIGKILL) == 0 { return nil }
-        if helper.connected { return await helper.terminate(pid: pid) }
+        if helper.connected { return await helper.terminate(pid: pid, startedAt: start) }
         return "Permission denied. Install the packet filter helper to stop processes owned by other users."
+    }
+
+    /// The detected process is still alive (same pid *and* same start time).
+    func isRunning(_ f: Finding) -> Bool {
+        guard let pid = f.pid, let start = f.processStart else { return false }
+        return ProcessTable.isSameProcess(pid, startedAt: start)
     }
 
     /// Denies all network access for the program behind a finding.
@@ -749,6 +813,209 @@ final class AppModel: ObservableObject {
         center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
             guard granted else { return }
             center.add(UNNotificationRequest(identifier: f.id.uuidString, content: content, trigger: nil))
+        }
+    }
+
+    // MARK: Vulnerabilities
+
+    var openVulns: [VulnFinding] { vulnFindings.filter { $0.status == .open } }
+    var openSeriousVulnCount: Int { openVulns.filter { $0.severity >= .high }.count }
+
+    private func autoScanIfDue() {
+        guard settings.vuln.enabled, settings.vuln.autoScanDaily, !vulnScanning else { return }
+        if let last = settings.vuln.lastScan, Date().timeIntervalSince(last) < 86400 { return }
+        Task { await scanVulnerabilities() }
+    }
+
+    func scanVulnerabilities() async {
+        guard !vulnScanning else { return }
+        vulnScanning = true
+        vulnDB.nvdKey = nvdKey.isEmpty ? nil : nvdKey
+        let scanner = VulnScanner(db: vulnDB, settings: settings.vuln) { [weak self] msg, frac in
+            Task { @MainActor in self?.vulnProgress = (msg, frac) }
+        }
+        let result = await Task.detached(priority: .utility) { await scanner.run() }.value
+        mergeVulns(result)
+        vulnScanning = false
+        settings.vuln.lastScan = result.date
+        if settings.remediation.mode == .automatic { await autoRemediate() }
+    }
+
+    /// Keeps the user's accept/reopen choices and LLM verdicts across rescans; what disappeared was fixed.
+    private func mergeVulns(_ r: VulnScanResult) {
+        let old = Dictionary(vulnFindings.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        var merged: [VulnFinding] = r.findings.map { f in
+            var f = f
+            if let prev = old[f.id] {
+                f.firstSeen = prev.firstSeen
+                f.status = prev.status == .fixed ? .open : prev.status
+                if prev.reachability.verdict == f.reachability.verdict {
+                    f.reachability.llmVerdict = prev.reachability.llmVerdict
+                    f.reachability.llmRationale = prev.reachability.llmRationale
+                }
+            }
+            return f
+        }
+        let current = Set(merged.map(\.id))
+        for f in vulnFindings where !current.contains(f.id) && f.status != .fixed {
+            var gone = f
+            gone.status = .fixed   // no longer installed at that version
+            merged.append(gone)
+        }
+        vulnFindings = merged
+        components = r.components
+        vulnErrors = r.errors
+        reachQueue = merged.filter { $0.status == .open && $0.severity >= .medium && $0.reachability.llmVerdict == nil
+            && [.imported, .reachable].contains($0.reachability.verdict) }
+            .sorted { $0.priority > $1.priority }.map(\.id)
+        refreshProfileVulns()
+        scheduleSave()
+        pumpAnalysis()
+    }
+
+    // MARK: Remediation
+
+    /// Plans for open findings (optionally only some components). Runs brew/git checks off the main thread.
+    func remediationPlans(for componentIDs: Set<String>? = nil) async -> [RemediationPlan] {
+        let findings = vulnFindings.filter { componentIDs == nil || componentIDs!.contains($0.component.id) }
+        var cfg = settings.remediation
+        if componentIDs != nil { cfg.minSeverity = .info }   // asked for specific components: cover all their vulns
+        return await Task.detached(priority: .userInitiated) { RemediationPlanner.plans(for: findings, settings: cfg) }.value
+    }
+
+    func applyRemediation(_ plans: [RemediationPlan], automatic: Bool = false) async {
+        guard !remediating else { return }
+        remediating = true
+        remediationLog = []
+        let backups = dir.appendingPathComponent("remediation-backups", isDirectory: true)
+        for plan in plans where plan.actionable || plan.steps.contains(where: { $0.kind == .firewallRule }) {
+            remediationLog.append("── \(plan.component.display)\(plan.target.map { " → \($0)" } ?? "")")
+            // Firewall steps go through Elliott's own rule engine.
+            var ruleIDs: [UUID] = []
+            for step in plan.steps where step.kind == .firewallRule {
+                guard let port = step.port else { continue }
+                var rule = Rule(appKey: "*", appName: plan.component.name, direction: .inbound, proto: .tcp, host: "*", port: port, verdict: .deny)
+                rule.note = "Remediation: \(plan.component.name) was listening on the network"
+                rules.append(rule)
+                ruleIDs.append(rule.id)
+                remediationLog.append("✓ \(step.summary)")
+            }
+            if !ruleIDs.isEmpty { rulesChanged() }
+            var record = await Task.detached(priority: .userInitiated) { [weak self] in
+                RemediationExecutor.execute(plan, backupDir: backups, automatic: automatic) { line in
+                    Task { @MainActor in self?.remediationLog.append(line) }
+                }
+            }.value
+            record.ruleIDs = ruleIDs
+            if !ruleIDs.isEmpty && record.status == .succeeded { record.log.insert(contentsOf: plan.steps.filter { $0.kind == .firewallRule }.map { "✓ \($0.summary)" }, at: 0) }
+            remediations.insert(record, at: 0)
+            markRemediated(record)
+        }
+        remediating = false
+        scheduleSave()
+    }
+
+    /// Findings count as fixed only when the verified version includes their fix (or the port is now blocked).
+    private func markRemediated(_ r: RemediationRecord) {
+        let cid = r.plan.component.id
+        for i in vulnFindings.indices where vulnFindings[i].component.id == cid && vulnFindings[i].status == .open {
+            let f = vulnFindings[i]
+            if f.vuln.id.hasPrefix("EXPOSED-") {
+                if !r.ruleIDs.isEmpty { vulnFindings[i].status = .fixed }
+            } else if let v = r.verifiedVersion, let fix = Version.upgrades(f.vuln.fixedVersions, from: f.component.version).first,
+                      Version.compare(v, fix) != .orderedAscending {
+                vulnFindings[i].status = .fixed
+            }
+        }
+        if let v = r.verifiedVersion, let i = components.firstIndex(where: { $0.id == cid }) { components[i].version = v }
+        refreshProfileVulns()
+    }
+
+    func undoRemediation(_ id: UUID) async {
+        guard let i = remediations.firstIndex(where: { $0.id == id }), remediations[i].status != .undone else { return }
+        let record = remediations[i]
+        remediationLog = ["── Undo \(record.plan.component.display)"]
+        if !record.ruleIDs.isEmpty {
+            removeRules(Set(record.ruleIDs))
+            remediationLog.append("✓ Removed \(record.ruleIDs.count) firewall rule(s)")
+        }
+        let lines = await Task.detached { [weak self] in
+            RemediationExecutor.undo(record) { line in Task { @MainActor in self?.remediationLog.append(line) } }
+        }.value
+        remediations[i].status = .undone
+        remediations[i].log += ["── Undone \(Date().formatted())"] + lines
+        // The vulnerabilities are back; reopen what this remediation closed.
+        for j in vulnFindings.indices where vulnFindings[j].component.id == record.plan.component.id && vulnFindings[j].status == .fixed {
+            vulnFindings[j].status = .open
+        }
+        refreshProfileVulns()
+        scheduleSave()
+    }
+
+    private func autoRemediate() async {
+        let cfg = settings.remediation
+        let plans = await remediationPlans().filter { p in
+            guard p.blocked == nil else { return false }
+            switch p.component.kind {
+            case .homebrew: return cfg.homebrew
+            case .package: return cfg.projects
+            default: return cfg.exposuresInAutomatic && p.steps.contains { $0.kind == .firewallRule }
+            }
+        }
+        guard !plans.isEmpty else { return }
+        await applyRemediation(plans, automatic: true)
+        let done = remediations.prefix(plans.count)
+        let ok = done.filter { $0.status == .succeeded }.count
+        let content = UNMutableNotificationContent()
+        content.title = "Elliott auto-remediated \(ok) of \(plans.count) component\(plans.count == 1 ? "" : "s")"
+        content.body = done.map { "\($0.plan.component.name): \($0.status.rawValue)" }.joined(separator: ", ")
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert]) { granted, _ in
+            if granted { center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)) }
+        }
+    }
+
+    func setVulnStatus(_ ids: Set<String>, _ status: VulnFinding.Status) {
+        for i in vulnFindings.indices where ids.contains(vulnFindings[i].id) { vulnFindings[i].status = status }
+        refreshProfileVulns()
+        scheduleSave()
+    }
+
+    func rejudgeReachability(_ ids: [String]) {
+        for i in vulnFindings.indices where ids.contains(vulnFindings[i].id) {
+            vulnFindings[i].reachability.llmVerdict = nil
+            vulnFindings[i].reachability.llmRationale = nil
+        }
+        reachQueue.insert(contentsOf: ids, at: 0)
+        pumpAnalysis()
+    }
+
+    private func runReachJudge(_ id: String) async {
+        guard let f = vulnFindings.first(where: { $0.id == id }) else { return }
+        reachJudgingID = id
+        llmStatus = "Reachability: \(f.component.name) / \(f.vuln.id)"
+        do {
+            let (verdict, why) = try await ReachabilityLLM.judge(f, llm: LocalLLM(settings: settings.llm))
+            if let i = vulnFindings.firstIndex(where: { $0.id == id }) {
+                vulnFindings[i].reachability.llmVerdict = verdict
+                vulnFindings[i].reachability.llmRationale = why
+            }
+            scheduleSave()
+        } catch {
+            llmStatus = "Reachability check failed: \(error.localizedDescription)"
+        }
+        reachJudgingID = nil
+    }
+
+    /// Connections from an app with serious known vulnerabilities carry that into their risk.
+    private func refreshProfileVulns() {
+        let appVulns = Dictionary(grouping: openVulns.filter { $0.component.kind == .app || $0.component.kind == .homebrew },
+                                  by: { $0.component.location })
+        for (id, p) in profiles {
+            let hits = appVulns.first { p.processPath.hasPrefix($0.key + "/") }?.value ?? []
+            let summary = hits.isEmpty ? nil : VulnSummary(maxScore: hits.map(\.vuln.score).max()!, count: hits.count,
+                                                          kev: hits.contains(where: \.kev))
+            if summary != p.vuln { profiles[id]?.vuln = summary }
         }
     }
 
@@ -796,19 +1063,25 @@ final class AppModel: ObservableObject {
         var intel: [IPIntel]?
         var findings: [Finding]?
         var edrBaseline: [String]?
+        var vulnFindings: [VulnFinding]?
+        var components: [Component]?
+        var remediations: [RemediationRecord]?
     }
 
     private var stateURL: URL { dir.appendingPathComponent("state.json") }
 
     private func load() {
         guard let data = try? Data(contentsOf: stateURL),
-              let s = try? JSONDecoder.bastion.decode(Saved.self, from: data) else { return }
+              let s = try? JSONDecoder.elliott.decode(Saved.self, from: data) else { return }
         profiles = Dictionary(s.profiles.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         rules = s.rules
         settings = s.settings
         decisions = s.decisions ?? []
         findings = s.findings ?? []
         edrBaseline = s.edrBaseline ?? []
+        vulnFindings = s.vulnFindings ?? []
+        components = s.components ?? []
+        remediations = s.remediations ?? []
         // Intel older than a week is re-checked from scratch.
         intel = Dictionary((s.intel ?? []).filter { Date().timeIntervalSince($0.checked) < 7 * 86400 }.map { ($0.ip, $0) },
                            uniquingKeysWith: { a, _ in a })
@@ -821,8 +1094,9 @@ final class AppModel: ObservableObject {
             guard !Task.isCancelled else { return }
             let saved = Saved(profiles: Array(profiles.values), rules: rules, settings: settings,
                               decisions: decisions, intel: Array(intel.values),
-                              findings: findings, edrBaseline: edrBaseline)
-            if let data = try? JSONEncoder.bastion.encode(saved) { try? data.write(to: stateURL, options: .atomic) }
+                              findings: findings, edrBaseline: edrBaseline,
+                              vulnFindings: vulnFindings, components: components, remediations: remediations)
+            if let data = try? JSONEncoder.elliott.encode(saved) { try? data.write(to: stateURL, options: .atomic) }
         }
     }
 }

@@ -216,7 +216,7 @@ final class EDRMonitor: @unchecked Sendable {
         if isNew {
             let risky = !drafts.isEmpty || (item.program.hasPrefix("/") && id.untrusted)
             drafts.append(Draft(rule: "persist.new", title: "New \(kind) installed: \(item.label)",
-                                detail: "Something added \(item.plist) since Bastion started watching. It will start \(item.program) automatically.",
+                                detail: "Something added \(item.plist) since Elliott started watching. It will start \(item.program) automatically.",
                                 severity: risky ? .high : .low, category: .persistence, mitre: mitre))
         }
         return drafts.map { d in

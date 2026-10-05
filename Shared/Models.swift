@@ -96,6 +96,9 @@ struct Rule: Codable, Identifiable, Hashable, Sendable {
     var note: String?
     /// "Allow once" under the packet-filter backend: a short-lived rule.
     var expires: Date?
+    /// Signer rule: applies to any app whose verified signature is from this developer team ("apple" = Apple).
+    /// `appKey` is "*" for these.
+    var signer: String?
 
     init(key: ConnectionKey, appName: String, verdict: Verdict, addresses: [String] = []) {
         appKey = key.appKey
@@ -116,7 +119,7 @@ struct Rule: Codable, Identifiable, Hashable, Sendable {
 
     var specificity: Int {
         var s = 0
-        if appKey != "*" { s += 8 }
+        if appKey != "*" { s += 8 } else if signer != nil { s += 6 }   // a specific app beats its signer
         if host != "*" { s += host.hasPrefix("*.") ? 2 : 4 }
         if port != nil { s += 2 }
         if proto != nil { s += 1 }
@@ -126,6 +129,10 @@ struct Rule: Codable, Identifiable, Hashable, Sendable {
     func matches(_ e: FlowEvent) -> Bool {
         if let expires, expires < Date() { return false }
         if appKey != "*" && appKey != e.appKey { return false }
+        if let signer {
+            // Only verified signatures count: the filter and monitors set teamID/appleSigned only when valid.
+            if signer == "apple" ? !e.appleSigned : (e.appleSigned || e.teamID != signer) { return false }
+        }
         if direction != e.direction { return false }
         if let proto, proto != e.proto { return false }
         if e.direction == .inbound {
@@ -179,19 +186,19 @@ struct ApprovalRequest: Codable, Identifiable, Sendable {
     var deadline: Date
 }
 
-enum BastionIDs {
-    static let appBundleID = "com.omarcharrkas.bastion"
-    static let filterBundleID = "com.omarcharrkas.bastion.filter"
+enum ElliottIDs {
+    static let appBundleID = "com.omarcharrkas.elliott"
+    static let filterBundleID = "com.omarcharrkas.elliott.filter"
     static let teamID = "3JG68S88LM"
-    static let machService = "\(teamID).com.omarcharrkas.bastion.xpc"
+    static let machService = "\(teamID).com.omarcharrkas.elliott.xpc"
     static func requirement(for id: String) -> String {
         "anchor apple generic and identifier \"\(id)\" and certificate leaf[subject.OU] = \"\(teamID)\""
     }
 }
 
 extension JSONEncoder {
-    static let bastion: JSONEncoder = { let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601; return e }()
+    static let elliott: JSONEncoder = { let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601; return e }()
 }
 extension JSONDecoder {
-    static let bastion: JSONDecoder = { let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d }()
+    static let elliott: JSONDecoder = { let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d }()
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Exported by the filter extension (runs as root). Only the signed Bastion app may connect.
+/// Exported by the filter extension (runs as root). Only the signed Elliott app may connect.
 @objc protocol FilterXPC {
     /// Registers the caller for callbacks. Replies with the JSON events buffered while no app was connected.
     func hello(reply: @escaping (Data) -> Void)

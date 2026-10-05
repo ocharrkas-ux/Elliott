@@ -3,7 +3,7 @@ import NetworkExtension
 import SystemExtensions
 import os
 
-private let log = Logger(subsystem: BastionIDs.appBundleID, category: "filter-client")
+private let log = Logger(subsystem: ElliottIDs.appBundleID, category: "filter-client")
 
 /// Installs/enables the content-filter system extension and talks to it over XPC.
 @MainActor
@@ -48,7 +48,7 @@ final class FilterClient: NSObject, ObservableObject {
     /// Activates the system extension (first time: the user approves it in System Settings), then enables the filter.
     func install() {
         state = .installing
-        let request = OSSystemExtensionRequest.activationRequest(forExtensionWithIdentifier: BastionIDs.filterBundleID,
+        let request = OSSystemExtensionRequest.activationRequest(forExtensionWithIdentifier: ElliottIDs.filterBundleID,
                                                                  queue: .main)
         request.delegate = receiver
         OSSystemExtensionManager.shared.submitRequest(request)
@@ -63,7 +63,7 @@ final class FilterClient: NSObject, ObservableObject {
                 config.filterSockets = true
                 config.filterPackets = false
                 manager.providerConfiguration = config
-                manager.localizedDescription = "Bastion"
+                manager.localizedDescription = "Elliott"
             }
             manager.isEnabled = on
             try await manager.saveToPreferences()
@@ -82,8 +82,8 @@ final class FilterClient: NSObject, ObservableObject {
 
     private func connect() {
         guard connection == nil else { return }
-        let c = NSXPCConnection(machServiceName: BastionIDs.machService, options: [])
-        c.setCodeSigningRequirement(BastionIDs.requirement(for: BastionIDs.filterBundleID))
+        let c = NSXPCConnection(machServiceName: ElliottIDs.machService, options: [])
+        c.setCodeSigningRequirement(ElliottIDs.requirement(for: ElliottIDs.filterBundleID))
         c.remoteObjectInterface = NSXPCInterface(with: FilterXPC.self)
         c.exportedInterface = NSXPCInterface(with: AppXPC.self)
         c.exportedObject = receiver
@@ -100,7 +100,7 @@ final class FilterClient: NSObject, ObservableObject {
         c.resume()
         connection = c
         proxy?.hello { [weak self] data in
-            let backlog = (try? JSONDecoder.bastion.decode([FlowEvent].self, from: data)) ?? []
+            let backlog = (try? JSONDecoder.elliott.decode([FlowEvent].self, from: data)) ?? []
             Task { @MainActor in
                 guard let self else { return }
                 self.connected = true
@@ -123,7 +123,7 @@ final class FilterClient: NSObject, ObservableObject {
     }
 
     func push(_ policy: FilterPolicy) {
-        guard let data = try? JSONEncoder.bastion.encode(policy) else { return }
+        guard let data = try? JSONEncoder.elliott.encode(policy) else { return }
         proxy?.setPolicy(data) { ok in if !ok { log.error("filter rejected policy") } }
     }
 
@@ -137,12 +137,12 @@ final class FilterClient: NSObject, ObservableObject {
         init(owner: FilterClient) { self.owner = owner }
 
         func flowsSeen(_ events: Data) {
-            guard let list = try? JSONDecoder.bastion.decode([FlowEvent].self, from: events) else { return }
+            guard let list = try? JSONDecoder.elliott.decode([FlowEvent].self, from: events) else { return }
             Task { @MainActor in self.owner?.onEvents?(list) }
         }
 
         func approvalNeeded(_ request: Data) {
-            guard let r = try? JSONDecoder.bastion.decode(ApprovalRequest.self, from: request) else { return }
+            guard let r = try? JSONDecoder.elliott.decode(ApprovalRequest.self, from: request) else { return }
             Task { @MainActor in self.owner?.onApproval?(r) }
         }
 

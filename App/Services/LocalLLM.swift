@@ -74,6 +74,9 @@ struct LocalLLM {
         } else if p.intel != nil {
             lines.append("Threat intelligence on the remote IP: not on any blocklist")
         }
+        if let v = p.vuln {
+            lines.append("The app has \(v.count) known vulnerabilities, CVSS up to \(v.maxScore)\(v.kev ? ", including actively exploited ones" : "")")
+        }
         if let edr = p.edr {
             lines.append("EDR alerts on this program (\(edr.severity.label)): " + edr.titles.joined(separator: "; "))
         }
@@ -135,7 +138,7 @@ struct LocalLLM {
             req = URLRequest(url: base.appendingPathComponent("v1/chat/completions"))
             body = ["model": settings.model, "messages": messages, "temperature": 0.1,
                     "response_format": ["type": "json_schema",
-                                        "json_schema": ["name": "bastion_answer", "schema": schema]]]
+                                        "json_schema": ["name": "elliott_answer", "schema": schema]]]
         }
         req.httpMethod = "POST"
         req.timeoutInterval = 120

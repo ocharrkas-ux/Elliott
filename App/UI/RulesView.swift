@@ -8,7 +8,7 @@ struct RuleRow: Identifiable {
     var id: UUID { rule.id }
 
     var verdictOrder: Int { rule.verdict == .deny ? 0 : 1 }
-    var app: String { rule.appKey == "*" ? "any app" : rule.appName }
+    var app: String { rule.signer != nil ? "signed by \(rule.appName)" : rule.appKey == "*" ? "any app" : rule.appName }
     var scope: String { rule.scopeLabel }
     var destination: String { rule.destinationLabel }
     var coverCount: Int { covers.count }
@@ -18,6 +18,7 @@ struct RuleRow: Identifiable {
 
 extension Rule {
     var scopeLabel: String {
+        if signer != nil { return "signer" }
         if host == "*" && port == nil { return "everything" }
         if port == nil { return "any port" }
         return "dest + port"
@@ -34,7 +35,7 @@ extension Rule {
 
     /// "Allow Google Chrome to connect to www.google.com on TCP port 443."
     var sentence: String {
-        let who = appKey == "*" ? "any app" : appName
+        let who = signer != nil ? "any app signed by \(appName)" : appKey == "*" ? "any app" : appName
         let verb = verdict == .allow ? "Allow" : "Block"
         let p = proto?.rawValue.uppercased() ?? "TCP/UDP"
         if direction == .inbound {
@@ -170,7 +171,7 @@ struct RulesView: View {
                     if let path = r.iconPath {
                         Image(nsImage: NSWorkspace.shared.icon(forFile: path)).resizable().frame(width: 16, height: 16)
                     } else {
-                        Image(systemName: r.rule.appKey == "*" ? "asterisk" : "app.dashed").frame(width: 16)
+                        Image(systemName: r.rule.signer != nil ? "signature" : r.rule.appKey == "*" ? "asterisk" : "app.dashed").frame(width: 16)
                     }
                     Text(r.app).lineLimit(1)
                 }

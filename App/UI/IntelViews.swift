@@ -31,7 +31,7 @@ struct SuggestionBadge: View {
     }
 }
 
-/// "Bastion thinks you'd deny this" with accept buttons and the past decisions behind it.
+/// "Elliott thinks you'd deny this" with accept buttons and the past decisions behind it.
 struct SuggestionBox: View {
     @EnvironmentObject var model: AppModel
     var profile: Profile

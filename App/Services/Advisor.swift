@@ -25,7 +25,7 @@ struct Decision: Codable, Identifiable, Hashable {
     var summary: String?
     var risk: Int
     var reputation: Reputation
-    /// What Bastion suggested before the user chose, if anything (for the match rate).
+    /// What Elliott suggested before the user chose, if anything (for the match rate).
     var suggested: Verdict?
 
     init(profile p: Profile, verdict: Verdict, source: Source, scope: String) {
@@ -52,7 +52,8 @@ struct Decision: Codable, Identifiable, Hashable {
         scope = r.scopeLabel
         appName = r.appKey == "*" ? "any app" : r.appName
         appKey = r.appKey
-        signer = r.appKey.hasPrefix("apple:") ? "apple" : r.appKey.hasPrefix("/") ? "unsigned" : "team \(r.appKey.split(separator: ":").first ?? "")"
+        signer = r.signer.map { $0 == "apple" ? "apple" : "team \($0)" }
+            ?? (r.appKey.hasPrefix("apple:") ? "apple" : r.appKey.hasPrefix("/") ? "unsigned" : "team \(r.appKey.split(separator: ":").first ?? "")")
         direction = r.direction
         proto = r.proto
         host = r.host

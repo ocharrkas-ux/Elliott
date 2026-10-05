@@ -186,7 +186,7 @@ final class ThreatIntel: @unchecked Sendable {
         if force || modified == nil || Date().timeIntervalSince(modified!) > maxAge {
             do {
                 var req = URLRequest(url: feed.url, timeoutInterval: 60)
-                req.setValue("Bastion/1.0 (macOS firewall)", forHTTPHeaderField: "User-Agent")
+                req.setValue("Elliott/1.0 (macOS firewall)", forHTTPHeaderField: "User-Agent")
                 let (data, response) = try await URLSession.shared.data(for: req)
                 guard (response as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty else {
                     throw URLError(.badServerResponse)

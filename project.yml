@@ -1,4 +1,4 @@
-name: Bastion
+name: Elliott
 options:
   bundleIdPrefix: com.omarcharrkas
   deploymentTarget:
@@ -12,74 +12,74 @@ settings:
     ENABLE_HARDENED_RUNTIME: YES
     MACOSX_DEPLOYMENT_TARGET: "15.0"
 
-# Bastion: app + root pf helper. Signs with any team, including a free Personal Team.
-# BastionNE: the same app plus the per-app Network Extension content filter. Needs a paid Apple Developer
+# Elliott: app + root pf helper. Signs with any team, including a free Personal Team.
+# ElliottNE: the same app plus the per-app Network Extension content filter. Needs a paid Apple Developer
 # Program team (Personal Teams can't get the Network Extension / System Extension capabilities).
 targets:
-  Bastion:
+  Elliott:
     type: application
     platform: macOS
     sources:
       - App
       - Shared
-      - path: Helper/com.omarcharrkas.bastion.helper.plist
+      - path: Helper/com.omarcharrkas.elliott.helper.plist
         buildPhase:
           copyFiles:
             destination: wrapper
             subpath: Contents/Library/LaunchDaemons
     dependencies:
-      - target: BastionHelper
+      - target: ElliottHelper
         embed: true
         copy:
           destination: executables
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.bastion
-        PRODUCT_NAME: Bastion
+        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.elliott
+        PRODUCT_NAME: Elliott
         INFOPLIST_FILE: App/Info.plist
         GENERATE_INFOPLIST_FILE: NO
-        CODE_SIGN_ENTITLEMENTS: App/Bastion.entitlements
+        CODE_SIGN_ENTITLEMENTS: App/Elliott.entitlements
 
-  BastionHelper:
+  ElliottHelper:
     type: tool
     platform: macOS
     sources: [Helper/main.swift, Shared]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.bastion.helper
-        PRODUCT_NAME: BastionHelper
+        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.elliott.helper
+        PRODUCT_NAME: ElliottHelper
         GENERATE_INFOPLIST_FILE: YES
         CREATE_INFOPLIST_SECTION_IN_BINARY: YES
         SKIP_INSTALL: YES
-        OTHER_CODE_SIGN_FLAGS: "--identifier com.omarcharrkas.bastion.helper"
+        OTHER_CODE_SIGN_FLAGS: "--identifier com.omarcharrkas.elliott.helper"
 
-  BastionNE:
+  ElliottNE:
     type: application
     platform: macOS
     sources:
       - App
       - Shared
-      - path: Helper/com.omarcharrkas.bastion.helper.plist
+      - path: Helper/com.omarcharrkas.elliott.helper.plist
         buildPhase:
           copyFiles:
             destination: wrapper
             subpath: Contents/Library/LaunchDaemons
     dependencies:
-      - target: BastionHelper
+      - target: ElliottHelper
         embed: true
         copy:
           destination: executables
-      - target: BastionFilter
+      - target: ElliottFilter
         embed: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.bastion
-        PRODUCT_NAME: Bastion
+        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.elliott
+        PRODUCT_NAME: Elliott
         INFOPLIST_FILE: App/Info.plist
         GENERATE_INFOPLIST_FILE: NO
-        CODE_SIGN_ENTITLEMENTS: App/BastionNE.entitlements
+        CODE_SIGN_ENTITLEMENTS: App/ElliottNE.entitlements
 
-  BastionFilter:
+  ElliottFilter:
     type: system-extension
     platform: macOS
     sources: [Filter, Shared]
@@ -87,35 +87,35 @@ targets:
       - sdk: NetworkExtension.framework
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.bastion.filter
-        PRODUCT_NAME: com.omarcharrkas.bastion.filter
+        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.elliott.filter
+        PRODUCT_NAME: com.omarcharrkas.elliott.filter
         INFOPLIST_FILE: Filter/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_ENTITLEMENTS: Filter/Filter.entitlements
         SKIP_INSTALL: YES
 
-  BastionTests:
+  ElliottTests:
     type: bundle.unit-test
     platform: macOS
     sources: [Tests]
     dependencies:
-      - target: Bastion
+      - target: Elliott
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.bastion.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.elliott.tests
         GENERATE_INFOPLIST_FILE: YES
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Bastion.app/Contents/MacOS/Bastion"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Elliott.app/Contents/MacOS/Elliott"
         BUNDLE_LOADER: "$(TEST_HOST)"
 
 schemes:
-  Bastion:
+  Elliott:
     build:
       targets:
-        Bastion: all
-        BastionTests: [test]
+        Elliott: all
+        ElliottTests: [test]
     test:
-      targets: [BastionTests]
-  BastionNE:
+      targets: [ElliottTests]
+  ElliottNE:
     build:
       targets:
-        BastionNE: all
+        ElliottNE: all

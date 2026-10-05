@@ -1,12 +1,14 @@
 import SwiftUI
 
 enum MainSection: String, CaseIterable, Identifiable {
-    case console = "connections", detections = "detections", log = "live.log", rules = "rules", firewall = "palo_alto.sync"
-    var id: String { rawValue }
+    case console = "connections", detections = "detections", vulns = "vulns", log = "live.log", rules = "rules", firewall = "palo_alto.sync"
+    /// The List tags rows with their id, so the id must be the same type as the selection.
+    var id: MainSection { self }
     var icon: String {
         switch self {
         case .console: "network"
         case .detections: "exclamationmark.shield"
+        case .vulns: "ladybug"
         case .log: "list.bullet.rectangle"
         case .rules: "checklist"
         case .firewall: "flame"
@@ -20,25 +22,29 @@ struct MainView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(MainSection.allCases, selection: $model.section) { s in
+            // Optional binding: the standard single-selection form for a sidebar List.
+            List(MainSection.allCases, selection: Binding<MainSection?>(get: { model.section },
+                                                                         set: { if let s = $0 { model.section = s } })) { s in
                 Label(s.rawValue, systemImage: s.icon).tag(s)
-                    .badge(s == .rules ? model.rules.count : s == .detections ? model.openFindingCount : 0)
+                    .badge(s == .rules ? model.rules.count : s == .detections ? model.openFindingCount : s == .vulns ? model.openSeriousVulnCount : 0)
             }
             .navigationSplitViewColumnWidth(230)
             .safeAreaInset(edge: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    GlitchText(text: "BASTION")
+                    GlitchText(text: "ELLIOTT")
                     HStack(spacing: 4) { PromptLine(command: "./watch --all"); BlinkingCursor() }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 14).padding(.vertical, 8)
+                .overlay(Scanlines())
             }
-            .safeAreaInset(edge: .bottom) { StatusPanel().padding(10) }
-            .overlay(Scanlines())
+            // Decoration stays off the list itself: an overlay above an AppKit-backed List can swallow its clicks.
+            .safeAreaInset(edge: .bottom) { StatusPanel().padding(10).overlay(Scanlines()) }
         } detail: {
             switch model.section {
             case .console: ConsoleView()
             case .detections: DetectionsView()
+            case .vulns: VulnView()
             case .log: LogView()
             case .rules: RulesView()
             case .firewall: FirewallView()
@@ -78,6 +84,8 @@ struct StatusPanel: View {
             Text("edr: \(model.openFindingCount) open\(model.openSeriousCount > 0 ? " (\(model.openSeriousCount) high+)" : "")")
                 .foregroundStyle(model.openSeriousCount > 0 ? Theme.red : Theme.dim)
                 .fontWeight(model.openSeriousCount > 0 ? .bold : .regular)
+            Text(model.vulnScanning ? "vulns: scanning…" : "vulns: \(model.openSeriousVulnCount) high+\(model.openVulns.contains(where: \.kev) ? " (exploited!)" : "")")
+                .foregroundStyle(model.openVulns.contains(where: \.kev) ? Theme.red : Theme.dim)
             if model.knownBadCount > 0 {
                 Text("[!] \(model.knownBadCount) known-bad destinations").foregroundStyle(Theme.red).fontWeight(.bold)
             }

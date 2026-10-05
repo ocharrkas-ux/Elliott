@@ -13,7 +13,7 @@ final class ApprovalPanel {
             let p = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 460, height: 400),
                             styleMask: [.titled, .closable, .fullSizeContentView, .utilityWindow],
                             backing: .buffered, defer: false)
-            p.title = "bastion: incoming request"
+            p.title = "elliott: incoming request"
             p.appearance = NSAppearance(named: .darkAqua)
             p.backgroundColor = NSColor(Theme.background)
             p.level = .floating
@@ -93,8 +93,8 @@ struct ApprovalView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(20)
-                .background(Theme.background)
-                .overlay(Scanlines(opacity: 0.05))
+                // Scanlines go behind the content so they can never intercept a click on Allow/Deny.
+                .background { ZStack { Theme.background; Scanlines(opacity: 0.05) } }
             } else {
                 Color.clear.frame(height: 1).onAppear(perform: close)
             }

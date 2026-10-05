@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// Turns Bastion's rules into Palo Alto "shadow" security rules: the same allow/deny connectivity, expressed
+/// Turns Elliott's rules into Palo Alto "shadow" security rules: the same allow/deny connectivity, expressed
 /// the way a network firewall can (it can't see which app opened a connection, so rules are per destination).
 struct ShadowPlan: Equatable {
     struct Object: Equatable { var kind: Kind; var name: String; var element: String
@@ -21,8 +21,8 @@ struct ShadowPlan: Equatable {
 }
 
 enum PolicyPlanner {
-    static let tag = "bastion-shadow"
-    static let macObject = "bastion-this-mac"
+    static let tag = "elliott-shadow"
+    static let macObject = "elliott-this-mac"
 
     static func plan(rules: [Rule], descriptions: [UUID: String], macAddress: String,
                      lockdown: Bool, mirrorLockdown: Bool) -> ShadowPlan {
@@ -36,12 +36,16 @@ enum PolicyPlanner {
         var order: [String] = []
 
         for rule in rules {
+            if rule.signer != nil {
+                plan.notes.append("\(rule.appName): signer rules aren't mirrored (a network firewall can't see code signatures)")
+                continue
+            }
             if rule.proto == .other { plan.notes.append("\(rule.appName) → \(rule.host): non-TCP/UDP rules aren't mirrored"); continue }
             // Services
             var services: [String] = []
             if let port = rule.port {
                 for p in rule.proto.map({ [$0] }) ?? [.tcp, .udp] {
-                    let name = "bastion-\(p.rawValue)-\(port)"
+                    let name = "elliott-\(p.rawValue)-\(port)"
                     objects[name] = .init(kind: .service, name: name,
                                           element: "<protocol><\(p.rawValue)><port>\(port)</port></\(p.rawValue)></protocol><tag><member>\(tag)</member></tag>")
                     services.append(name)
@@ -59,7 +63,7 @@ enum PolicyPlanner {
                 remote = rule.addresses.filter(RiskHeuristics.isIPLiteral).map { addressObject(ip: $0, into: &objects) }
                 if remote.isEmpty { plan.notes.append("\(rule.appName) → \(rule.host): wildcard with no known IPs, skipped"); continue }
             } else {
-                let name = objectName("bastion-fqdn-", rule.host)
+                let name = objectName("elliott-fqdn-", rule.host)
                 objects[name] = .init(kind: .address, name: name, element: "<fqdn>\(xmlEscape(rule.host))</fqdn><tag><member>\(tag)</member></tag>")
                 remote = [name]
             }
@@ -84,10 +88,10 @@ enum PolicyPlanner {
                     continue
                 }
                 let appList = Set(apps).sorted().joined(separator: ", ")
-                var desc = "Bastion shadow (\(verdict.rawValue)) for \(appList)."
+                var desc = "Elliott shadow (\(verdict.rawValue)) for \(appList)."
                 if let n = g.notes[verdict]?.first { desc += " " + n }
                 let r = ShadowPlan.SecurityRule(
-                    name: "bastion-\(verdict.rawValue)-\(shortHash(gk))", action: verdict,
+                    name: "elliott-\(verdict.rawValue)-\(shortHash(gk))", action: verdict,
                     source: g.direction == .outbound ? [macObject] : g.remote,
                     destination: g.direction == .outbound ? g.remote : [macObject],
                     service: g.services, description: String(desc.prefix(1000)))
@@ -96,10 +100,10 @@ enum PolicyPlanner {
         }
         plan.rules = denies + allows
         if lockdown && mirrorLockdown {
-            plan.rules.append(.init(name: "bastion-lockdown-outbound", action: .deny, source: [macObject], destination: ["any"],
-                                    service: ["any"], description: "Bastion lockdown: this Mac may only reach approved destinations."))
-            plan.rules.append(.init(name: "bastion-lockdown-inbound", action: .deny, source: ["any"], destination: [macObject],
-                                    service: ["any"], description: "Bastion lockdown: no unapproved inbound connections to this Mac."))
+            plan.rules.append(.init(name: "elliott-lockdown-outbound", action: .deny, source: [macObject], destination: ["any"],
+                                    service: ["any"], description: "Elliott lockdown: this Mac may only reach approved destinations."))
+            plan.rules.append(.init(name: "elliott-lockdown-inbound", action: .deny, source: ["any"], destination: [macObject],
+                                    service: ["any"], description: "Elliott lockdown: no unapproved inbound connections to this Mac."))
         }
         plan.objects += objects.values.sorted { $0.name < $1.name }
         return plan
@@ -116,7 +120,7 @@ enum PolicyPlanner {
     }
 
     private static func addressObject(ip: String, into objects: inout [String: ShadowPlan.Object]) -> String {
-        let name = objectName("bastion-ip-", ip)
+        let name = objectName("elliott-ip-", ip)
         objects[name] = .init(kind: .address, name: name, element: "<ip-netmask>\(xmlEscape(ip))</ip-netmask><tag><member>\(tag)</member></tag>")
         return name
     }
@@ -158,7 +162,7 @@ struct SyncReport {
 }
 
 enum PolicySync {
-    /// Makes the firewall's Bastion-tagged rules match `plan`: creates/updates objects and rules, removes stale
+    /// Makes the firewall's Elliott-tagged rules match `plan`: creates/updates objects and rules, removes stale
     /// rules, orders them (denies, allows, lockdown) at the top of the rulebase, and optionally commits.
     static func apply(_ plan: ShadowPlan, client: PANClient) async -> SyncReport {
         var report = SyncReport()
@@ -166,7 +170,7 @@ enum PolicySync {
         do {
             say(try await client.systemInfo())
             try await client.set("\(client.base)/tag/entry[@name='\(PolicyPlanner.tag)']",
-                                 "<color>color3</color><comments>Managed by Bastion</comments>")
+                                 "<color>color3</color><comments>Managed by Elliott</comments>")
             for o in plan.objects {
                 try await client.set("\(client.base)/\(o.kind.rawValue)/entry[@name='\(o.name)']", o.element)
             }
@@ -193,7 +197,7 @@ enum PolicySync {
             plan.notes.forEach { say("note: \($0)") }
 
             if client.settings.commit {
-                let job = try await client.commit(description: "Bastion shadow policy sync")
+                let job = try await client.commit(description: "Elliott shadow policy sync")
                 say("commit job \(job)")
             } else {
                 say("changes are in the candidate config (auto-commit is off)")

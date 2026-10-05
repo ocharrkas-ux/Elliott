@@ -1,0 +1,1124 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0016C6D4156B42C6FF874603 /* Reachability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191A0CB89DFC849701008826 /* Reachability.swift */; };
+		004BFC832EFE0BF3A24E7D63 /* PolicySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D2515CDF83B484A27A555C /* PolicySync.swift */; };
+		03D0497B4E1163C3A22CC747 /* DetectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8CE660EB9EB320A1F4BBEF9 /* DetectionsView.swift */; };
+		03FAF79BBC2D8F740DD23A82 /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28F5C37C6537AB3634A0811 /* XPCProtocol.swift */; };
+		0CEAA5FFAEFF222F5FF23713 /* Signers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D414CF45D6ADE1AA3D4290 /* Signers.swift */; };
+		0EBE1EC621CAC745ABD3609B /* Inventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E3FEADDC12E18660E6D703 /* Inventory.swift */; };
+		15AF943C5524CBEC911F31D1 /* ProcessTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED46F76739A785F085031EA3 /* ProcessTable.swift */; };
+		19F3590D00380FB0D9E2B3E1 /* LocalLLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E80898B153F6188E81D78A /* LocalLLM.swift */; };
+		1A2022AC8D8EFCA95C5769B0 /* Remediation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81B7BE864C64B1AFFDF62B0 /* Remediation.swift */; };
+		1E652DAB0704C44787D3C281 /* FilterDataProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4291B12C5242D1BB27E14C9 /* FilterDataProvider.swift */; };
+		242390A01781AC1882D3E1A1 /* ElliottApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D15E8F00127CABBBDF00F72 /* ElliottApp.swift */; };
+		297BCC19D704DFBF624E23A6 /* Remediation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81B7BE864C64B1AFFDF62B0 /* Remediation.swift */; };
+		29A38886A7BEF8B04DA3BF22 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA53A9942EDC758F8372FFB6 /* SettingsView.swift */; };
+		29F5995FCBEB319BC159F54A /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C2E94E33B8F526AB456A2CE /* Theme.swift */; };
+		2A25EB65E8DBF35694263F44 /* FilterClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575EEC4219C57ECC9FC33A8D /* FilterClient.swift */; };
+		2D707E70BC68AEC288E74C18 /* PassiveMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C74BB757E790A6A55DEAC391 /* PassiveMonitor.swift */; };
+		314F92D01C3DD0A39A0CE5C3 /* ProcessTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED46F76739A785F085031EA3 /* ProcessTable.swift */; };
+		31697C744A1870893DD3356F /* ProcessTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED46F76739A785F085031EA3 /* ProcessTable.swift */; };
+		35B89B99309FAC1C0A59FC48 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35531B8A7629A003C651198C /* Models.swift */; };
+		35D792511436D7884550F5F3 /* RulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC1FECCDF0DFF3845F82B0BA /* RulesView.swift */; };
+		35D7D32FED8C4EAA9BC2D4DC /* HelperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FDAAE422A4313DAEBF0DF3 /* HelperClient.swift */; };
+		367521584303543E47E4D893 /* PassiveMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C74BB757E790A6A55DEAC391 /* PassiveMonitor.swift */; };
+		377FBBDDD4B62BA476771B3A /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C70A7403DFC04E89131A258 /* MainView.swift */; };
+		37B8A659C69F49F2166077B8 /* Inventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E3FEADDC12E18660E6D703 /* Inventory.swift */; };
+		3B10953D1B754EC3541D0B02 /* RemediationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B825D0E3F1CF4A51D3D50E08 /* RemediationViews.swift */; };
+		3C649C858099A60B9399F82B /* PFRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7BCFAB7B0EF004524E166A0 /* PFRules.swift */; };
+		41CFF88E0467734CC3C7D37A /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CAF8778366339F269392BD /* Profile.swift */; };
+		42676A50117426FE8C39E057 /* ThreatIntel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24B473EA6F7AB881A9CBFD7 /* ThreatIntel.swift */; };
+		43F279214996927C2A77CCBE /* HelperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FDAAE422A4313DAEBF0DF3 /* HelperClient.swift */; };
+		44E16B1F6425133A7FE12EC2 /* RiskHeuristics.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA2EF48F36E55E307F981D7 /* RiskHeuristics.swift */; };
+		4562DF81A0AC889AF3B0B7B6 /* ElliottHelper in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = C3EFF57058284DEDFC4FAED8 /* ElliottHelper */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		45AFBA32D7F14E23B54BBE89 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA53A9942EDC758F8372FFB6 /* SettingsView.swift */; };
+		4740BA9F5BE3D47517107F6A /* Reachability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191A0CB89DFC849701008826 /* Reachability.swift */; };
+		48639D0DBC3C846FA30FC3E7 /* ConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D48AA4B7F13342F47EFFD3 /* ConsoleView.swift */; };
+		494B89C7A55FC94E8A092967 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C70A7403DFC04E89131A258 /* MainView.swift */; };
+		4C0160FB6C75665DF94FED8E /* DNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C535C908A5B1FA6CA673BA4A /* DNSCache.swift */; };
+		4FC982B921E5C5CF092C6986 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8FD500E70FE62A556BC66652 /* NetworkExtension.framework */; };
+		5034286E08BE0CF903C45F87 /* VulnModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21E07D80729DD851FEEF1C06 /* VulnModels.swift */; };
+		546651066E82D8AB5E610510 /* com.omarcharrkas.elliott.helper.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = B39694E0C064061F27AF09B8 /* com.omarcharrkas.elliott.helper.plist */; };
+		546820203BE06AE0D3929385 /* Advisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53F2BCF2E20A9DAFB45973CD /* Advisor.swift */; };
+		54A8ED2227291C3FD58DD9FE /* VulnDB.swift in Sources */ = {isa = PBXBuildFile; fileRef = B833B7AE6A5B72604C2B3B82 /* VulnDB.swift */; };
+		5B0E623AFACBBF2DD09CD4A5 /* RulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC1FECCDF0DFF3845F82B0BA /* RulesView.swift */; };
+		5B7E58E5B0C5F82D93ED6729 /* com.omarcharrkas.elliott.helper.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = B39694E0C064061F27AF09B8 /* com.omarcharrkas.elliott.helper.plist */; };
+		5E0C945BEB229AF388A57970 /* ElliottHelper in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = C3EFF57058284DEDFC4FAED8 /* ElliottHelper */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5F814D43E69CCFBCFACEBDEC /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABFFBA82BAFF2498A903C00 /* AppModel.swift */; };
+		5FA522D9B95D3BB50DFF75FF /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28F5C37C6537AB3634A0811 /* XPCProtocol.swift */; };
+		613E3A2DF184BE78CEBC481A /* CodeIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 267FB12381EF6FFC9596D8AE /* CodeIdentity.swift */; };
+		64303946A25C4C1FBFFC8C27 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CAF8778366339F269392BD /* Profile.swift */; };
+		69F103716D85ACF3C3E5B372 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48D12D2878952009515C727C /* main.swift */; };
+		6AE749DE5EB553D5C0CC4F8D /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3156B38104B548FED0AB2B39 /* Components.swift */; };
+		6B36E26C1DD9815B44CD4E39 /* ApprovalPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67326EE3FA7EB0FC88FCB684 /* ApprovalPanel.swift */; };
+		788E5DF3CA76E74076021A0D /* LocalLLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E80898B153F6188E81D78A /* LocalLLM.swift */; };
+		7E12B43A6D4A8D11A7F4EE45 /* VulnView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A76BC7B3B4A89659321354B /* VulnView.swift */; };
+		7F5BE77C88A0BC34166E3037 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35531B8A7629A003C651198C /* Models.swift */; };
+		80E291B98F29873EE0764047 /* ElliottApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D15E8F00127CABBBDF00F72 /* ElliottApp.swift */; };
+		8141C3AFEB72FB5292A4E3C6 /* DNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C535C908A5B1FA6CA673BA4A /* DNSCache.swift */; };
+		875312F8E71B928D0B2B2EF8 /* Advisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53F2BCF2E20A9DAFB45973CD /* Advisor.swift */; };
+		8AA7912283D31B4B2F491AA1 /* DNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C535C908A5B1FA6CA673BA4A /* DNSCache.swift */; };
+		8B0FD8477A3C166197C89C7C /* TriageLLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527800D61FCFAB2634524CA9 /* TriageLLM.swift */; };
+		90578FE8877BAB4BD53711F2 /* EDRMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6836D6D87AF0320CC0A1F2F /* EDRMonitor.swift */; };
+		90EBD2FC593A544634DA925E /* RemediationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B825D0E3F1CF4A51D3D50E08 /* RemediationViews.swift */; };
+		96F50EDB7DC10E071992A520 /* PaloAlto.swift in Sources */ = {isa = PBXBuildFile; fileRef = C827F5B152B61662BDE78BF9 /* PaloAlto.swift */; };
+		990CA405CF0C2884F11830C2 /* ThreatIntel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24B473EA6F7AB881A9CBFD7 /* ThreatIntel.swift */; };
+		9A41C8DBACDA0A36FC2FD478 /* Detections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5488DE7CB47D490BAFF0E26 /* Detections.swift */; };
+		9B45891371C7F14D6C8C1B8D /* TriageLLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527800D61FCFAB2634524CA9 /* TriageLLM.swift */; };
+		9CC51737289DE3E1F1CA4C40 /* VulnDB.swift in Sources */ = {isa = PBXBuildFile; fileRef = B833B7AE6A5B72604C2B3B82 /* VulnDB.swift */; };
+		9EA03CCB1704D39F4FB92AA8 /* VulnView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A76BC7B3B4A89659321354B /* VulnView.swift */; };
+		A17D7D02A244EB87138792B8 /* PaloAlto.swift in Sources */ = {isa = PBXBuildFile; fileRef = C827F5B152B61662BDE78BF9 /* PaloAlto.swift */; };
+		A1A8A06E6EFDDCFCA5C502A9 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3156B38104B548FED0AB2B39 /* Components.swift */; };
+		A5C1CEE5CB8DDC5A1044AB63 /* EDRMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6836D6D87AF0320CC0A1F2F /* EDRMonitor.swift */; };
+		A8BF7AF7C9E72210F0DF11CA /* VulnScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FAC45639D46F50320708F45 /* VulnScanner.swift */; };
+		ABD592FFFF9F846C1AA23C00 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABFFBA82BAFF2498A903C00 /* AppModel.swift */; };
+		AE2786917384C228AAC94219 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B8A2EF7A58AA4AC5C8C83B0 /* main.swift */; };
+		AF03458421060D790FE9307E /* ProcessTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED46F76739A785F085031EA3 /* ProcessTable.swift */; };
+		AF6C73477AF698A4D140C295 /* Signers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D414CF45D6ADE1AA3D4290 /* Signers.swift */; };
+		B04C2CEF19DABCE5E1114240 /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28F5C37C6537AB3634A0811 /* XPCProtocol.swift */; };
+		B0B2692E4E4018012EE3367A /* RiskHeuristics.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA2EF48F36E55E307F981D7 /* RiskHeuristics.swift */; };
+		B2D9903D61E44F7A67E847BA /* Detections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5488DE7CB47D490BAFF0E26 /* Detections.swift */; };
+		B746948C60B8E2A0791EC169 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3713ED4DB62C94C88A3982F8 /* Keychain.swift */; };
+		B8C3E3A03A6FDFC7745EA05E /* PolicySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D2515CDF83B484A27A555C /* PolicySync.swift */; };
+		BADED7A1ADA59DD3CA4DF441 /* IntelViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B5597CD070D5E8C0A9D5A0 /* IntelViews.swift */; };
+		BD15C0330A83BC66ABB7929B /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28F5C37C6537AB3634A0811 /* XPCProtocol.swift */; };
+		BF157DE54C0D79257E36A50D /* DetectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8CE660EB9EB320A1F4BBEF9 /* DetectionsView.swift */; };
+		C4D9F9BB9638E97E33F2C77F /* IntelViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B5597CD070D5E8C0A9D5A0 /* IntelViews.swift */; };
+		CA6321A763C0A0BF6951FAB7 /* DNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C535C908A5B1FA6CA673BA4A /* DNSCache.swift */; };
+		CBB5C9CA4226C5621452A4BB /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35531B8A7629A003C651198C /* Models.swift */; };
+		CF61B21126726202035158EF /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3713ED4DB62C94C88A3982F8 /* Keychain.swift */; };
+		D4012C10837A8AC4A0ED549F /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C2E94E33B8F526AB456A2CE /* Theme.swift */; };
+		D4684037C8076C10CCCF0E39 /* VulnScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FAC45639D46F50320708F45 /* VulnScanner.swift */; };
+		D6DF7B07D06AB15930AC7CA1 /* VulnModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21E07D80729DD851FEEF1C06 /* VulnModels.swift */; };
+		D9F837EDACB7B34276C688AC /* LogAndRulesViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A674263B51CA8727B00DFE /* LogAndRulesViews.swift */; };
+		DBC0CB03C9B4993813AA0734 /* FilterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842553ED94F361781075D0AF /* FilterService.swift */; };
+		DBFD77C14F1DE75CE1232136 /* PFRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7BCFAB7B0EF004524E166A0 /* PFRules.swift */; };
+		E140250612FB7DAB5B057DE3 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35531B8A7629A003C651198C /* Models.swift */; };
+		E296EFCBDAE5B09762C83B2E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB3B7B73A54B195B2937C55D /* Assets.xcassets */; };
+		E373E74FAA6F99EC62EBF5D6 /* ElliottTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A881B98FB5CF46BE435FA6A /* ElliottTests.swift */; };
+		E6DA83D9D349EB6A9264873E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB3B7B73A54B195B2937C55D /* Assets.xcassets */; };
+		F246B2FC9A1760838094BA17 /* FilterClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575EEC4219C57ECC9FC33A8D /* FilterClient.swift */; };
+		F2EA6BC88E4E35C905D8E04C /* ApprovalPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67326EE3FA7EB0FC88FCB684 /* ApprovalPanel.swift */; };
+		F4AE6BBA7E3D11C1555FEE5E /* LogAndRulesViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A674263B51CA8727B00DFE /* LogAndRulesViews.swift */; };
+		F5BA3AF0FB04417C4D7544CD /* PFRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7BCFAB7B0EF004524E166A0 /* PFRules.swift */; };
+		F82D00731A89C652B073DEE5 /* ConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D48AA4B7F13342F47EFFD3 /* ConsoleView.swift */; };
+		FDF1535B41DC24AD3EBBC828 /* ElliottFilter.systemextension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = FCCDE0852D5B3E4115A3E20A /* ElliottFilter.systemextension */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FFAF4EDCD9344B023854C2A0 /* PFRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7BCFAB7B0EF004524E166A0 /* PFRules.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		170356DE276FB7E7514AAF30 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AE3B8FB188DA5BE3193543A2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8EC7A5CF3DE72112C174DA8E;
+			remoteInfo = ElliottHelper;
+		};
+		5603D8ECAAFDA603C14813F9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AE3B8FB188DA5BE3193543A2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 885BA26BE8FEE85661F49AD7;
+			remoteInfo = Elliott;
+		};
+		904E636D0048BC139614CFCD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AE3B8FB188DA5BE3193543A2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8EC7A5CF3DE72112C174DA8E;
+			remoteInfo = ElliottHelper;
+		};
+		BCA1BE446FB67C3AF3F101B5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AE3B8FB188DA5BE3193543A2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 219F14418B49BC23B00655F1;
+			remoteInfo = ElliottFilter;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		040B7E67EE1E14A57C4B2815 /* Embed System Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(SYSTEM_EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				FDF1535B41DC24AD3EBBC828 /* ElliottFilter.systemextension in Embed System Extensions */,
+			);
+			name = "Embed System Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		261C4E823B4FE501EAF4EF39 /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				5E0C945BEB229AF388A57970 /* ElliottHelper in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A059BF81A507BF04AC1E6726 /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				4562DF81A0AC889AF3B0B7B6 /* ElliottHelper in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C44C072F24811F0482E609B0 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LaunchDaemons;
+			dstSubfolderSpec = 1;
+			files = (
+				5B7E58E5B0C5F82D93ED6729 /* com.omarcharrkas.elliott.helper.plist in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E9803DBCEBC41F08841E340D /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LaunchDaemons;
+			dstSubfolderSpec = 1;
+			files = (
+				546651066E82D8AB5E610510 /* com.omarcharrkas.elliott.helper.plist in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		07B5597CD070D5E8C0A9D5A0 /* IntelViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelViews.swift; sourceTree = "<group>"; };
+		0B8A2EF7A58AA4AC5C8C83B0 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		105A94C8EE98F630C34FC9F9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		13E3FEADDC12E18660E6D703 /* Inventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Inventory.swift; sourceTree = "<group>"; };
+		17A674263B51CA8727B00DFE /* LogAndRulesViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogAndRulesViews.swift; sourceTree = "<group>"; };
+		1869C6DB127648F252EF8156 /* Elliott.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Elliott.entitlements; sourceTree = "<group>"; };
+		191A0CB89DFC849701008826 /* Reachability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reachability.swift; sourceTree = "<group>"; };
+		19D48AA4B7F13342F47EFFD3 /* ConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleView.swift; sourceTree = "<group>"; };
+		1FAC45639D46F50320708F45 /* VulnScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VulnScanner.swift; sourceTree = "<group>"; };
+		21E07D80729DD851FEEF1C06 /* VulnModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VulnModels.swift; sourceTree = "<group>"; };
+		267FB12381EF6FFC9596D8AE /* CodeIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeIdentity.swift; sourceTree = "<group>"; };
+		2C70A7403DFC04E89131A258 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		3156B38104B548FED0AB2B39 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		35531B8A7629A003C651198C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		3713ED4DB62C94C88A3982F8 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
+		3D15E8F00127CABBBDF00F72 /* ElliottApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElliottApp.swift; sourceTree = "<group>"; };
+		48D12D2878952009515C727C /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		4A76BC7B3B4A89659321354B /* VulnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VulnView.swift; sourceTree = "<group>"; };
+		4A881B98FB5CF46BE435FA6A /* ElliottTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElliottTests.swift; sourceTree = "<group>"; };
+		4BAE91727625B15982CC9E58 /* Filter.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Filter.entitlements; sourceTree = "<group>"; };
+		51D2515CDF83B484A27A555C /* PolicySync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolicySync.swift; sourceTree = "<group>"; };
+		527800D61FCFAB2634524CA9 /* TriageLLM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriageLLM.swift; sourceTree = "<group>"; };
+		53F2BCF2E20A9DAFB45973CD /* Advisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Advisor.swift; sourceTree = "<group>"; };
+		558F46224DE3458A1F092C24 /* ElliottNE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ElliottNE.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		575EEC4219C57ECC9FC33A8D /* FilterClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterClient.swift; sourceTree = "<group>"; };
+		67326EE3FA7EB0FC88FCB684 /* ApprovalPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalPanel.swift; sourceTree = "<group>"; };
+		69D414CF45D6ADE1AA3D4290 /* Signers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Signers.swift; sourceTree = "<group>"; };
+		70E80898B153F6188E81D78A /* LocalLLM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLLM.swift; sourceTree = "<group>"; };
+		74CAF8778366339F269392BD /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
+		842553ED94F361781075D0AF /* FilterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterService.swift; sourceTree = "<group>"; };
+		8A0514BFE1AA52EF00AF02E6 /* ElliottNE.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ElliottNE.entitlements; sourceTree = "<group>"; };
+		8FD500E70FE62A556BC66652 /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = System/Library/Frameworks/NetworkExtension.framework; sourceTree = SDKROOT; };
+		99343BE1E0440B3F9BA5DD02 /* Elliott.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Elliott.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9C2E94E33B8F526AB456A2CE /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		A5488DE7CB47D490BAFF0E26 /* Detections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Detections.swift; sourceTree = "<group>"; };
+		A8CE660EB9EB320A1F4BBEF9 /* DetectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionsView.swift; sourceTree = "<group>"; };
+		AB3B7B73A54B195B2937C55D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B28F5C37C6537AB3634A0811 /* XPCProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XPCProtocol.swift; sourceTree = "<group>"; };
+		B39694E0C064061F27AF09B8 /* com.omarcharrkas.elliott.helper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = com.omarcharrkas.elliott.helper.plist; sourceTree = "<group>"; };
+		B41432F4E9DA93CC8C51B4BF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B7BCFAB7B0EF004524E166A0 /* PFRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PFRules.swift; sourceTree = "<group>"; };
+		B825D0E3F1CF4A51D3D50E08 /* RemediationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemediationViews.swift; sourceTree = "<group>"; };
+		B833B7AE6A5B72604C2B3B82 /* VulnDB.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VulnDB.swift; sourceTree = "<group>"; };
+		C3EFF57058284DEDFC4FAED8 /* ElliottHelper */ = {isa = PBXFileReference; includeInIndex = 0; path = ElliottHelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		C4291B12C5242D1BB27E14C9 /* FilterDataProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterDataProvider.swift; sourceTree = "<group>"; };
+		C535C908A5B1FA6CA673BA4A /* DNSCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSCache.swift; sourceTree = "<group>"; };
+		C74BB757E790A6A55DEAC391 /* PassiveMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassiveMonitor.swift; sourceTree = "<group>"; };
+		C827F5B152B61662BDE78BF9 /* PaloAlto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaloAlto.swift; sourceTree = "<group>"; };
+		CABFFBA82BAFF2498A903C00 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		CDA2EF48F36E55E307F981D7 /* RiskHeuristics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiskHeuristics.swift; sourceTree = "<group>"; };
+		D81B7BE864C64B1AFFDF62B0 /* Remediation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Remediation.swift; sourceTree = "<group>"; };
+		DC1FECCDF0DFF3845F82B0BA /* RulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesView.swift; sourceTree = "<group>"; };
+		EA53A9942EDC758F8372FFB6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		ED46F76739A785F085031EA3 /* ProcessTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessTable.swift; sourceTree = "<group>"; };
+		F24B473EA6F7AB881A9CBFD7 /* ThreatIntel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreatIntel.swift; sourceTree = "<group>"; };
+		F4FDAAE422A4313DAEBF0DF3 /* HelperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelperClient.swift; sourceTree = "<group>"; };
+		F6836D6D87AF0320CC0A1F2F /* EDRMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EDRMonitor.swift; sourceTree = "<group>"; };
+		FA1E119CD15636632B416B59 /* ElliottTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ElliottTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FCCDE0852D5B3E4115A3E20A /* ElliottFilter.systemextension */ = {isa = PBXFileReference; explicitFileType = "wrapper.system-extension"; includeInIndex = 0; path = ElliottFilter.systemextension; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		45A54B9412909316553F40FB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4FC982B921E5C5CF092C6986 /* NetworkExtension.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0F7EB829C4A1F5DA92377FE9 /* Helper */ = {
+			isa = PBXGroup;
+			children = (
+				B39694E0C064061F27AF09B8 /* com.omarcharrkas.elliott.helper.plist */,
+				48D12D2878952009515C727C /* main.swift */,
+			);
+			path = Helper;
+			sourceTree = "<group>";
+		};
+		170D34412B74C80F6992DEA0 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8FD500E70FE62A556BC66652 /* NetworkExtension.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		23FC1F4BB65276BDB23E4680 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				67326EE3FA7EB0FC88FCB684 /* ApprovalPanel.swift */,
+				3156B38104B548FED0AB2B39 /* Components.swift */,
+				19D48AA4B7F13342F47EFFD3 /* ConsoleView.swift */,
+				A8CE660EB9EB320A1F4BBEF9 /* DetectionsView.swift */,
+				07B5597CD070D5E8C0A9D5A0 /* IntelViews.swift */,
+				17A674263B51CA8727B00DFE /* LogAndRulesViews.swift */,
+				2C70A7403DFC04E89131A258 /* MainView.swift */,
+				B825D0E3F1CF4A51D3D50E08 /* RemediationViews.swift */,
+				DC1FECCDF0DFF3845F82B0BA /* RulesView.swift */,
+				EA53A9942EDC758F8372FFB6 /* SettingsView.swift */,
+				9C2E94E33B8F526AB456A2CE /* Theme.swift */,
+				4A76BC7B3B4A89659321354B /* VulnView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		522DEE98596694F1F7E23C4D /* App */ = {
+			isa = PBXGroup;
+			children = (
+				CABFFBA82BAFF2498A903C00 /* AppModel.swift */,
+				AB3B7B73A54B195B2937C55D /* Assets.xcassets */,
+				1869C6DB127648F252EF8156 /* Elliott.entitlements */,
+				3D15E8F00127CABBBDF00F72 /* ElliottApp.swift */,
+				8A0514BFE1AA52EF00AF02E6 /* ElliottNE.entitlements */,
+				B41432F4E9DA93CC8C51B4BF /* Info.plist */,
+				7D91CB93B93710DB9E17D558 /* Services */,
+				23FC1F4BB65276BDB23E4680 /* UI */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		66153FBD0A0EE7F5B24B0D06 /* EDR */ = {
+			isa = PBXGroup;
+			children = (
+				A5488DE7CB47D490BAFF0E26 /* Detections.swift */,
+				F6836D6D87AF0320CC0A1F2F /* EDRMonitor.swift */,
+				527800D61FCFAB2634524CA9 /* TriageLLM.swift */,
+			);
+			path = EDR;
+			sourceTree = "<group>";
+		};
+		66547A4E0BF666A90E7613B9 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				C535C908A5B1FA6CA673BA4A /* DNSCache.swift */,
+				35531B8A7629A003C651198C /* Models.swift */,
+				B7BCFAB7B0EF004524E166A0 /* PFRules.swift */,
+				ED46F76739A785F085031EA3 /* ProcessTable.swift */,
+				B28F5C37C6537AB3634A0811 /* XPCProtocol.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		746D60D7D2A80E43368B80E2 = {
+			isa = PBXGroup;
+			children = (
+				522DEE98596694F1F7E23C4D /* App */,
+				AAD575F13A038470BBB435CB /* Filter */,
+				0F7EB829C4A1F5DA92377FE9 /* Helper */,
+				66547A4E0BF666A90E7613B9 /* Shared */,
+				B5E04CA2DBC9681B3720EE51 /* Tests */,
+				170D34412B74C80F6992DEA0 /* Frameworks */,
+				F651041C636AEB6C37F2FAD7 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		7D91CB93B93710DB9E17D558 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				53F2BCF2E20A9DAFB45973CD /* Advisor.swift */,
+				575EEC4219C57ECC9FC33A8D /* FilterClient.swift */,
+				F4FDAAE422A4313DAEBF0DF3 /* HelperClient.swift */,
+				3713ED4DB62C94C88A3982F8 /* Keychain.swift */,
+				70E80898B153F6188E81D78A /* LocalLLM.swift */,
+				C827F5B152B61662BDE78BF9 /* PaloAlto.swift */,
+				C74BB757E790A6A55DEAC391 /* PassiveMonitor.swift */,
+				51D2515CDF83B484A27A555C /* PolicySync.swift */,
+				74CAF8778366339F269392BD /* Profile.swift */,
+				CDA2EF48F36E55E307F981D7 /* RiskHeuristics.swift */,
+				69D414CF45D6ADE1AA3D4290 /* Signers.swift */,
+				F24B473EA6F7AB881A9CBFD7 /* ThreatIntel.swift */,
+				66153FBD0A0EE7F5B24B0D06 /* EDR */,
+				AD900DD2F71782272949A161 /* Vuln */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		AAD575F13A038470BBB435CB /* Filter */ = {
+			isa = PBXGroup;
+			children = (
+				267FB12381EF6FFC9596D8AE /* CodeIdentity.swift */,
+				4BAE91727625B15982CC9E58 /* Filter.entitlements */,
+				C4291B12C5242D1BB27E14C9 /* FilterDataProvider.swift */,
+				842553ED94F361781075D0AF /* FilterService.swift */,
+				105A94C8EE98F630C34FC9F9 /* Info.plist */,
+				0B8A2EF7A58AA4AC5C8C83B0 /* main.swift */,
+			);
+			path = Filter;
+			sourceTree = "<group>";
+		};
+		AD900DD2F71782272949A161 /* Vuln */ = {
+			isa = PBXGroup;
+			children = (
+				13E3FEADDC12E18660E6D703 /* Inventory.swift */,
+				191A0CB89DFC849701008826 /* Reachability.swift */,
+				D81B7BE864C64B1AFFDF62B0 /* Remediation.swift */,
+				B833B7AE6A5B72604C2B3B82 /* VulnDB.swift */,
+				21E07D80729DD851FEEF1C06 /* VulnModels.swift */,
+				1FAC45639D46F50320708F45 /* VulnScanner.swift */,
+			);
+			path = Vuln;
+			sourceTree = "<group>";
+		};
+		B5E04CA2DBC9681B3720EE51 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				4A881B98FB5CF46BE435FA6A /* ElliottTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		F651041C636AEB6C37F2FAD7 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				99343BE1E0440B3F9BA5DD02 /* Elliott.app */,
+				FCCDE0852D5B3E4115A3E20A /* ElliottFilter.systemextension */,
+				C3EFF57058284DEDFC4FAED8 /* ElliottHelper */,
+				558F46224DE3458A1F092C24 /* ElliottNE.app */,
+				FA1E119CD15636632B416B59 /* ElliottTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		219F14418B49BC23B00655F1 /* ElliottFilter */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8DD62AE42F9823F0B943E7D8 /* Build configuration list for PBXNativeTarget "ElliottFilter" */;
+			buildPhases = (
+				F59EBD8536BA66C7F2A9CB2D /* Sources */,
+				45A54B9412909316553F40FB /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ElliottFilter;
+			packageProductDependencies = (
+			);
+			productName = ElliottFilter;
+			productReference = FCCDE0852D5B3E4115A3E20A /* ElliottFilter.systemextension */;
+			productType = "com.apple.product-type.system-extension";
+		};
+		31C735472947878F717BCCCD /* ElliottTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6742D8386C5E6B23A41D6A5E /* Build configuration list for PBXNativeTarget "ElliottTests" */;
+			buildPhases = (
+				C3FE222BACFC010E1C6CEB04 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				69FC07783279267A5ADAF71C /* PBXTargetDependency */,
+			);
+			name = ElliottTests;
+			packageProductDependencies = (
+			);
+			productName = ElliottTests;
+			productReference = FA1E119CD15636632B416B59 /* ElliottTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		885BA26BE8FEE85661F49AD7 /* Elliott */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 65900BABBEBF5F8A7ADD9042 /* Build configuration list for PBXNativeTarget "Elliott" */;
+			buildPhases = (
+				C0B3C5EAC1015593AF31814C /* Sources */,
+				BCE102123B0CA54EBAC8B787 /* Resources */,
+				C44C072F24811F0482E609B0 /* CopyFiles */,
+				A059BF81A507BF04AC1E6726 /* Embed Dependencies */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EACA4C1E5C2F82E4C9C76DB6 /* PBXTargetDependency */,
+			);
+			name = Elliott;
+			packageProductDependencies = (
+			);
+			productName = Elliott;
+			productReference = 99343BE1E0440B3F9BA5DD02 /* Elliott.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8EC7A5CF3DE72112C174DA8E /* ElliottHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D1029673FBB4B51E06A1785E /* Build configuration list for PBXNativeTarget "ElliottHelper" */;
+			buildPhases = (
+				D7DFFA08BCAFF03342AB54D9 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ElliottHelper;
+			packageProductDependencies = (
+			);
+			productName = ElliottHelper;
+			productReference = C3EFF57058284DEDFC4FAED8 /* ElliottHelper */;
+			productType = "com.apple.product-type.tool";
+		};
+		B81069C6D14832327E3F3E2B /* ElliottNE */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 28AE1631030353927D4CB2A1 /* Build configuration list for PBXNativeTarget "ElliottNE" */;
+			buildPhases = (
+				62A38E1FC85716A50DA4CB34 /* Sources */,
+				42473DC4ECC2C3898021613E /* Resources */,
+				E9803DBCEBC41F08841E340D /* CopyFiles */,
+				040B7E67EE1E14A57C4B2815 /* Embed System Extensions */,
+				261C4E823B4FE501EAF4EF39 /* Embed Dependencies */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5BFA21F68F8255209F5E8785 /* PBXTargetDependency */,
+				644147F07E4841DBD7D2169F /* PBXTargetDependency */,
+			);
+			name = ElliottNE;
+			packageProductDependencies = (
+			);
+			productName = ElliottNE;
+			productReference = 558F46224DE3458A1F092C24 /* ElliottNE.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AE3B8FB188DA5BE3193543A2 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					219F14418B49BC23B00655F1 = {
+						DevelopmentTeam = 3JG68S88LM;
+						ProvisioningStyle = Automatic;
+					};
+					31C735472947878F717BCCCD = {
+						DevelopmentTeam = 3JG68S88LM;
+						ProvisioningStyle = Automatic;
+					};
+					885BA26BE8FEE85661F49AD7 = {
+						DevelopmentTeam = 3JG68S88LM;
+						ProvisioningStyle = Automatic;
+					};
+					8EC7A5CF3DE72112C174DA8E = {
+						DevelopmentTeam = 3JG68S88LM;
+						ProvisioningStyle = Automatic;
+					};
+					B81069C6D14832327E3F3E2B = {
+						DevelopmentTeam = 3JG68S88LM;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 0C3ADBCAAF0699EE41CD9A8A /* Build configuration list for PBXProject "Elliott" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 746D60D7D2A80E43368B80E2;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F651041C636AEB6C37F2FAD7 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				885BA26BE8FEE85661F49AD7 /* Elliott */,
+				8EC7A5CF3DE72112C174DA8E /* ElliottHelper */,
+				B81069C6D14832327E3F3E2B /* ElliottNE */,
+				219F14418B49BC23B00655F1 /* ElliottFilter */,
+				31C735472947878F717BCCCD /* ElliottTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		42473DC4ECC2C3898021613E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E296EFCBDAE5B09762C83B2E /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BCE102123B0CA54EBAC8B787 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E6DA83D9D349EB6A9264873E /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		62A38E1FC85716A50DA4CB34 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				546820203BE06AE0D3929385 /* Advisor.swift in Sources */,
+				5F814D43E69CCFBCFACEBDEC /* AppModel.swift in Sources */,
+				F2EA6BC88E4E35C905D8E04C /* ApprovalPanel.swift in Sources */,
+				A1A8A06E6EFDDCFCA5C502A9 /* Components.swift in Sources */,
+				F82D00731A89C652B073DEE5 /* ConsoleView.swift in Sources */,
+				4C0160FB6C75665DF94FED8E /* DNSCache.swift in Sources */,
+				9A41C8DBACDA0A36FC2FD478 /* Detections.swift in Sources */,
+				03D0497B4E1163C3A22CC747 /* DetectionsView.swift in Sources */,
+				90578FE8877BAB4BD53711F2 /* EDRMonitor.swift in Sources */,
+				80E291B98F29873EE0764047 /* ElliottApp.swift in Sources */,
+				2A25EB65E8DBF35694263F44 /* FilterClient.swift in Sources */,
+				43F279214996927C2A77CCBE /* HelperClient.swift in Sources */,
+				BADED7A1ADA59DD3CA4DF441 /* IntelViews.swift in Sources */,
+				0EBE1EC621CAC745ABD3609B /* Inventory.swift in Sources */,
+				CF61B21126726202035158EF /* Keychain.swift in Sources */,
+				788E5DF3CA76E74076021A0D /* LocalLLM.swift in Sources */,
+				D9F837EDACB7B34276C688AC /* LogAndRulesViews.swift in Sources */,
+				494B89C7A55FC94E8A092967 /* MainView.swift in Sources */,
+				35B89B99309FAC1C0A59FC48 /* Models.swift in Sources */,
+				3C649C858099A60B9399F82B /* PFRules.swift in Sources */,
+				A17D7D02A244EB87138792B8 /* PaloAlto.swift in Sources */,
+				367521584303543E47E4D893 /* PassiveMonitor.swift in Sources */,
+				B8C3E3A03A6FDFC7745EA05E /* PolicySync.swift in Sources */,
+				314F92D01C3DD0A39A0CE5C3 /* ProcessTable.swift in Sources */,
+				64303946A25C4C1FBFFC8C27 /* Profile.swift in Sources */,
+				0016C6D4156B42C6FF874603 /* Reachability.swift in Sources */,
+				297BCC19D704DFBF624E23A6 /* Remediation.swift in Sources */,
+				90EBD2FC593A544634DA925E /* RemediationViews.swift in Sources */,
+				B0B2692E4E4018012EE3367A /* RiskHeuristics.swift in Sources */,
+				5B0E623AFACBBF2DD09CD4A5 /* RulesView.swift in Sources */,
+				45AFBA32D7F14E23B54BBE89 /* SettingsView.swift in Sources */,
+				AF6C73477AF698A4D140C295 /* Signers.swift in Sources */,
+				D4012C10837A8AC4A0ED549F /* Theme.swift in Sources */,
+				42676A50117426FE8C39E057 /* ThreatIntel.swift in Sources */,
+				9B45891371C7F14D6C8C1B8D /* TriageLLM.swift in Sources */,
+				9CC51737289DE3E1F1CA4C40 /* VulnDB.swift in Sources */,
+				5034286E08BE0CF903C45F87 /* VulnModels.swift in Sources */,
+				A8BF7AF7C9E72210F0DF11CA /* VulnScanner.swift in Sources */,
+				7E12B43A6D4A8D11A7F4EE45 /* VulnView.swift in Sources */,
+				BD15C0330A83BC66ABB7929B /* XPCProtocol.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0B3C5EAC1015593AF31814C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				875312F8E71B928D0B2B2EF8 /* Advisor.swift in Sources */,
+				ABD592FFFF9F846C1AA23C00 /* AppModel.swift in Sources */,
+				6B36E26C1DD9815B44CD4E39 /* ApprovalPanel.swift in Sources */,
+				6AE749DE5EB553D5C0CC4F8D /* Components.swift in Sources */,
+				48639D0DBC3C846FA30FC3E7 /* ConsoleView.swift in Sources */,
+				CA6321A763C0A0BF6951FAB7 /* DNSCache.swift in Sources */,
+				B2D9903D61E44F7A67E847BA /* Detections.swift in Sources */,
+				BF157DE54C0D79257E36A50D /* DetectionsView.swift in Sources */,
+				A5C1CEE5CB8DDC5A1044AB63 /* EDRMonitor.swift in Sources */,
+				242390A01781AC1882D3E1A1 /* ElliottApp.swift in Sources */,
+				F246B2FC9A1760838094BA17 /* FilterClient.swift in Sources */,
+				35D7D32FED8C4EAA9BC2D4DC /* HelperClient.swift in Sources */,
+				C4D9F9BB9638E97E33F2C77F /* IntelViews.swift in Sources */,
+				37B8A659C69F49F2166077B8 /* Inventory.swift in Sources */,
+				B746948C60B8E2A0791EC169 /* Keychain.swift in Sources */,
+				19F3590D00380FB0D9E2B3E1 /* LocalLLM.swift in Sources */,
+				F4AE6BBA7E3D11C1555FEE5E /* LogAndRulesViews.swift in Sources */,
+				377FBBDDD4B62BA476771B3A /* MainView.swift in Sources */,
+				7F5BE77C88A0BC34166E3037 /* Models.swift in Sources */,
+				FFAF4EDCD9344B023854C2A0 /* PFRules.swift in Sources */,
+				96F50EDB7DC10E071992A520 /* PaloAlto.swift in Sources */,
+				2D707E70BC68AEC288E74C18 /* PassiveMonitor.swift in Sources */,
+				004BFC832EFE0BF3A24E7D63 /* PolicySync.swift in Sources */,
+				31697C744A1870893DD3356F /* ProcessTable.swift in Sources */,
+				41CFF88E0467734CC3C7D37A /* Profile.swift in Sources */,
+				4740BA9F5BE3D47517107F6A /* Reachability.swift in Sources */,
+				1A2022AC8D8EFCA95C5769B0 /* Remediation.swift in Sources */,
+				3B10953D1B754EC3541D0B02 /* RemediationViews.swift in Sources */,
+				44E16B1F6425133A7FE12EC2 /* RiskHeuristics.swift in Sources */,
+				35D792511436D7884550F5F3 /* RulesView.swift in Sources */,
+				29A38886A7BEF8B04DA3BF22 /* SettingsView.swift in Sources */,
+				0CEAA5FFAEFF222F5FF23713 /* Signers.swift in Sources */,
+				29F5995FCBEB319BC159F54A /* Theme.swift in Sources */,
+				990CA405CF0C2884F11830C2 /* ThreatIntel.swift in Sources */,
+				8B0FD8477A3C166197C89C7C /* TriageLLM.swift in Sources */,
+				54A8ED2227291C3FD58DD9FE /* VulnDB.swift in Sources */,
+				D6DF7B07D06AB15930AC7CA1 /* VulnModels.swift in Sources */,
+				D4684037C8076C10CCCF0E39 /* VulnScanner.swift in Sources */,
+				9EA03CCB1704D39F4FB92AA8 /* VulnView.swift in Sources */,
+				03FAF79BBC2D8F740DD23A82 /* XPCProtocol.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C3FE222BACFC010E1C6CEB04 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E373E74FAA6F99EC62EBF5D6 /* ElliottTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D7DFFA08BCAFF03342AB54D9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8AA7912283D31B4B2F491AA1 /* DNSCache.swift in Sources */,
+				CBB5C9CA4226C5621452A4BB /* Models.swift in Sources */,
+				DBFD77C14F1DE75CE1232136 /* PFRules.swift in Sources */,
+				AF03458421060D790FE9307E /* ProcessTable.swift in Sources */,
+				B04C2CEF19DABCE5E1114240 /* XPCProtocol.swift in Sources */,
+				69F103716D85ACF3C3E5B372 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F59EBD8536BA66C7F2A9CB2D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				613E3A2DF184BE78CEBC481A /* CodeIdentity.swift in Sources */,
+				8141C3AFEB72FB5292A4E3C6 /* DNSCache.swift in Sources */,
+				1E652DAB0704C44787D3C281 /* FilterDataProvider.swift in Sources */,
+				DBC0CB03C9B4993813AA0734 /* FilterService.swift in Sources */,
+				E140250612FB7DAB5B057DE3 /* Models.swift in Sources */,
+				F5BA3AF0FB04417C4D7544CD /* PFRules.swift in Sources */,
+				15AF943C5524CBEC911F31D1 /* ProcessTable.swift in Sources */,
+				5FA522D9B95D3BB50DFF75FF /* XPCProtocol.swift in Sources */,
+				AE2786917384C228AAC94219 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5BFA21F68F8255209F5E8785 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8EC7A5CF3DE72112C174DA8E /* ElliottHelper */;
+			targetProxy = 170356DE276FB7E7514AAF30 /* PBXContainerItemProxy */;
+		};
+		644147F07E4841DBD7D2169F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 219F14418B49BC23B00655F1 /* ElliottFilter */;
+			targetProxy = BCA1BE446FB67C3AF3F101B5 /* PBXContainerItemProxy */;
+		};
+		69FC07783279267A5ADAF71C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 885BA26BE8FEE85661F49AD7 /* Elliott */;
+			targetProxy = 5603D8ECAAFDA603C14813F9 /* PBXContainerItemProxy */;
+		};
+		EACA4C1E5C2F82E4C9C76DB6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8EC7A5CF3DE72112C174DA8E /* ElliottHelper */;
+			targetProxy = 904E636D0048BC139614CFCD /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0E4F59B773B5850C726455C5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Filter/Filter.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Filter/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.elliott.filter;
+				PRODUCT_NAME = com.omarcharrkas.elliott.filter;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		3476D54D6313F3C45BB3EA0E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_CODE_SIGN_FLAGS = "--identifier com.omarcharrkas.elliott.helper";
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.elliott.helper;
+				PRODUCT_NAME = ElliottHelper;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		3EF51C59160688ACDDD59DD6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Filter/Filter.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Filter/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.elliott.filter;
+				PRODUCT_NAME = com.omarcharrkas.elliott.filter;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		60354F50922FCEEBD8A7720D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_CODE_SIGN_FLAGS = "--identifier com.omarcharrkas.elliott.helper";
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.elliott.helper;
+				PRODUCT_NAME = ElliottHelper;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		744876C140C4349E41C7085C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.elliott.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Elliott.app/Contents/MacOS/Elliott";
+			};
+			name = Release;
+		};
+		8768BC8E4D0541D8190CEB9B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 3JG68S88LM;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		B488E8463CC547DEA7AAA821 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/Elliott.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.elliott;
+				PRODUCT_NAME = Elliott;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		BDAA01A2B51BE5C8084BD9E7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/ElliottNE.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.elliott;
+				PRODUCT_NAME = Elliott;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		DEE5012F0485E5CE2F69B0AE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/Elliott.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.elliott;
+				PRODUCT_NAME = Elliott;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		E3EBFC0F6E0FE2BA5D877AEC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 3JG68S88LM;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		E7B23B5C3426F766637DAC1E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/ElliottNE.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.elliott;
+				PRODUCT_NAME = Elliott;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		EBA8AFD0CFA0BD13B6FD8D19 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.omarcharrkas.elliott.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Elliott.app/Contents/MacOS/Elliott";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0C3ADBCAAF0699EE41CD9A8A /* Build configuration list for PBXProject "Elliott" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E3EBFC0F6E0FE2BA5D877AEC /* Debug */,
+				8768BC8E4D0541D8190CEB9B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		28AE1631030353927D4CB2A1 /* Build configuration list for PBXNativeTarget "ElliottNE" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E7B23B5C3426F766637DAC1E /* Debug */,
+				BDAA01A2B51BE5C8084BD9E7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		65900BABBEBF5F8A7ADD9042 /* Build configuration list for PBXNativeTarget "Elliott" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B488E8463CC547DEA7AAA821 /* Debug */,
+				DEE5012F0485E5CE2F69B0AE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		6742D8386C5E6B23A41D6A5E /* Build configuration list for PBXNativeTarget "ElliottTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EBA8AFD0CFA0BD13B6FD8D19 /* Debug */,
+				744876C140C4349E41C7085C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8DD62AE42F9823F0B943E7D8 /* Build configuration list for PBXNativeTarget "ElliottFilter" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3EF51C59160688ACDDD59DD6 /* Debug */,
+				0E4F59B773B5850C726455C5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D1029673FBB4B51E06A1785E /* Build configuration list for PBXNativeTarget "ElliottHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				60354F50922FCEEBD8A7720D /* Debug */,
+				3476D54D6313F3C45BB3EA0E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AE3B8FB188DA5BE3193543A2 /* Project object */;
+}

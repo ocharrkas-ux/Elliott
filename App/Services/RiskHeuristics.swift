@@ -50,6 +50,11 @@ enum RiskHeuristics {
             }
         }
 
+        if let v = p.vuln, v.maxScore >= 7 {
+            add(v.kev ? 20 : v.maxScore >= 9 ? 15 : 8,
+                "The app has \(v.count) known vulnerabilit\(v.count == 1 ? "y" : "ies") (CVSS up to \(String(format: "%.1f", v.maxScore))\(v.kev ? ", actively exploited" : ""))")
+        }
+
         if let edr = p.edr {
             let bump = [Severity.critical: 40, .high: 25, .medium: 10][edr.severity] ?? 0
             if bump > 0 { add(bump, "EDR: the program behind it is flagged (\(edr.titles.prefix(2).joined(separator: "; ")))") }

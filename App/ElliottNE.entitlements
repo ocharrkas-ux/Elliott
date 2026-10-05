@@ -6,6 +6,6 @@
 	<key>com.apple.developer.networking.networkextension</key>
 	<array><string>content-filter-provider</string></array>
 	<key>com.apple.security.application-groups</key>
-	<array><string>$(TeamIdentifierPrefix)com.omarcharrkas.bastion</string></array>
+	<array><string>$(TeamIdentifierPrefix)com.omarcharrkas.elliott</string></array>
 </dict>
 </plist>

@@ -38,6 +38,8 @@ struct Finding: Codable, Identifiable, Hashable {
     var mitre: [String]
     var path: String?
     var pid: Int32?
+    /// The process's start time: with `pid`, identifies exactly one process (ids get reused).
+    var processStart: Date?
     var commandLine: String?
     var user: String?
     var chain: [String] = []      // ancestors, nearest first: "zsh (812)"
@@ -115,7 +117,7 @@ enum Detections {
                     #"\bxattr\b.*(-d|-c|-r|-cr|-rc)\b.*com\.apple\.quarantine|\bxattr\s+-(cr|rc|c)\s"#,
                     .medium, ["T1553.001"], "Strips Gatekeeper's download flag so a file runs without checks."),
         CommandRule("cmd.defense-off", "Security controls disabled",
-                    #"spctl\s+--(master|global)-disable|csrutil\s+disable|\bkillall\b.*(little ?snitch|lulu|bastion|xprotect)|launchctl\s+(unload|bootout|disable).*(xprotect|mrt|security|bastion)"#,
+                    #"spctl\s+--(master|global)-disable|csrutil\s+disable|\bkillall\b.*(little ?snitch|lulu|elliott|xprotect)|launchctl\s+(unload|bootout|disable).*(xprotect|mrt|security|elliott)"#,
                     .high, ["T1562.001"], "Turns off Gatekeeper, SIP or a security tool."),
         CommandRule("cmd.tcc-tamper", "Privacy database tampering",
                     #"TCC\.db|\btccutil\s+reset\b"#,

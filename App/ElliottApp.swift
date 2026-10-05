@@ -1,11 +1,11 @@
 import SwiftUI
 
 @main
-struct BastionApp: App {
+struct ElliottApp: App {
     @StateObject private var model = AppModel()
 
     var body: some Scene {
-        Window("Bastion", id: "main") {
+        Window("Elliott", id: "main") {
             MainView()
                 .environmentObject(model)
                 .frame(minWidth: 1000, minHeight: 600)
@@ -45,6 +45,6 @@ struct MenuBarMenu: View {
         }
         SettingsLink { Text("Settings…") }
         Divider()
-        Button("Quit Bastion") { NSApp.terminate(nil) }
+        Button("Quit Elliott") { NSApp.terminate(nil) }
     }
 }

@@ -47,6 +47,23 @@ enum ProcessTable {
         return out
     }
 
+    /// When `pid` started, or nil if no such process. Process ids get reused, so (pid, start time) is what
+    /// identifies one process.
+    static func startTime(_ pid: Int32) -> Date? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        var kp = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        guard sysctl(&mib, 4, &kp, &size, nil, 0) == 0, size > 0, kp.kp_proc.p_pid == pid else { return nil }
+        let tv = kp.kp_proc.p_un.__p_starttime
+        return Date(timeIntervalSince1970: Double(tv.tv_sec) + Double(tv.tv_usec) / 1e6)
+    }
+
+    /// True if `pid` is still the same process that started at `start` (to within a millisecond).
+    static func isSameProcess(_ pid: Int32, startedAt start: Date) -> Bool {
+        guard let now = startTime(pid) else { return false }
+        return abs(now.timeIntervalSince(start)) < 0.001
+    }
+
     static func path(_ pid: Int32) -> String? {
         var buf = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
         return proc_pidpath(pid, &buf, UInt32(buf.count)) > 0 ? String(cString: buf) : nil

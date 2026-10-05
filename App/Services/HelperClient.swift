@@ -2,7 +2,7 @@ import Foundation
 import ServiceManagement
 import os
 
-private let log = Logger(subsystem: BastionIDs.appBundleID, category: "helper-client")
+private let log = Logger(subsystem: ElliottIDs.appBundleID, category: "helper-client")
 
 /// Registers the privileged pf helper (SMAppService) and sends it the policy.
 @MainActor
@@ -11,14 +11,14 @@ final class HelperClient: ObservableObject {
     @Published private(set) var connected = false
     @Published private(set) var lastError: String?
 
-    private let service = SMAppService.daemon(plistName: "\(BastionIDs.helperLabel).plist")
+    private let service = SMAppService.daemon(plistName: "\(ElliottIDs.helperLabel).plist")
     private var connection: NSXPCConnection?
     private var pingTask: Task<Void, Never>?
 
     var statusLabel: String {
         switch status {
         case .enabled: connected ? "Packet filter helper running" : "Helper enabled, starting…"
-        case .requiresApproval: "Allow “Bastion” in System Settings → General → Login Items & Extensions"
+        case .requiresApproval: "Allow “Elliott” in System Settings → General → Login Items & Extensions"
         case .notRegistered: "Packet filter helper not installed"
         case .notFound: "Helper missing from the app bundle"
         @unknown default: "Unknown helper state"
@@ -59,8 +59,8 @@ final class HelperClient: ObservableObject {
 
     private func connect() async {
         if connection == nil {
-            let c = NSXPCConnection(machServiceName: BastionIDs.helperLabel, options: .privileged)
-            c.setCodeSigningRequirement(BastionIDs.requirement(for: BastionIDs.helperLabel))
+            let c = NSXPCConnection(machServiceName: ElliottIDs.helperLabel, options: .privileged)
+            c.setCodeSigningRequirement(ElliottIDs.requirement(for: ElliottIDs.helperLabel))
             c.remoteObjectInterface = NSXPCInterface(with: HelperXPC.self)
             c.invalidationHandler = { [weak self] in
                 Task { @MainActor in self?.connection = nil; self?.connected = false }
@@ -82,7 +82,7 @@ final class HelperClient: ObservableObject {
     var onConnected: (() -> Void)?
 
     func push(_ policy: FilterPolicy) {
-        guard let data = try? JSONEncoder.bastion.encode(policy),
+        guard let data = try? JSONEncoder.elliott.encode(policy),
               let proxy = connection?.remoteObjectProxyWithErrorHandler({ e in log.error("helper: \(e.localizedDescription)") }) as? HelperXPC
         else { return }
         proxy.apply(policy: data) { err in
@@ -99,15 +99,15 @@ final class HelperClient: ObservableObject {
             guard let proxy else { return once.resume(nil) }
             proxy.processes { once.resume($0) }
         }
-        return data.flatMap { try? JSONDecoder.bastion.decode([ProcInfo].self, from: $0) }
+        return data.flatMap { try? JSONDecoder.elliott.decode([ProcInfo].self, from: $0) }
     }
 
-    func terminate(pid: Int32) async -> String? {
+    func terminate(pid: Int32, startedAt: Date) async -> String? {
         guard connection != nil else { return "helper not connected" }
         return await withCheckedContinuation { cont in
             let once = Once<String?>(cont)
             let proxy = connection?.remoteObjectProxyWithErrorHandler { e in once.resume(e.localizedDescription) } as? HelperXPC
-            proxy?.terminate(pid: pid) { once.resume($0) }
+            proxy?.terminate(pid: pid, startedAt: startedAt.timeIntervalSince1970) { once.resume($0) }
         }
     }
 
