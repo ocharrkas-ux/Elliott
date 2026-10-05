@@ -92,6 +92,15 @@ enum PFRules {
     /// Kills a process the user chose to stop, only if `pid` still belongs to the process that started at
     /// `startedAt` (seconds since 1970). Replies nil on success.
     func terminate(pid: Int32, startedAt: Double, reply: @escaping (String?) -> Void)
+    /// Starts recording packets for a JSON PcapSpec. Replies nil on success.
+    func startPcap(spec: Data, reply: @escaping (String?) -> Void)
+    /// Replaces a running recording's addresses/process ids (same spec id).
+    func updatePcap(spec: Data, reply: @escaping (Bool) -> Void)
+    func stopPcap(id: String, reply: @escaping (Bool) -> Void)
+    /// JSON [PcapStatus]: running and finished recordings.
+    func pcaps(reply: @escaping (Data) -> Void)
+    /// Deletes a finished capture file in Elliott's captures folder.
+    func deletePcap(path: String, reply: @escaping (Bool) -> Void)
 }
 
 extension ElliottIDs {

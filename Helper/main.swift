@@ -59,6 +59,29 @@ final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
     }
 
     private let capture = NameCapture()
+    private let recorder = PcapRecorder()
+
+    func startPcap(spec: Data, reply: @escaping (String?) -> Void) {
+        guard let s = try? JSONDecoder().decode(PcapSpec.self, from: spec) else { return reply("bad capture request") }
+        reply(recorder.start(s))
+    }
+
+    func updatePcap(spec: Data, reply: @escaping (Bool) -> Void) {
+        guard let s = try? JSONDecoder().decode(PcapSpec.self, from: spec) else { return reply(false) }
+        reply(recorder.update(s))
+    }
+
+    func stopPcap(id: String, reply: @escaping (Bool) -> Void) {
+        guard let u = UUID(uuidString: id) else { return reply(false) }
+        recorder.stop(u)
+        reply(true)
+    }
+
+    func pcaps(reply: @escaping (Data) -> Void) {
+        reply((try? JSONEncoder.elliott.encode(recorder.list())) ?? Data("[]".utf8))
+    }
+
+    func deletePcap(path: String, reply: @escaping (Bool) -> Void) { reply(recorder.delete(path)) }
 
     func setNameCapture(_ on: Bool, reply: @escaping (Bool) -> Void) {
         if on { capture.start() } else { capture.stop() }
@@ -69,8 +92,10 @@ final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
         reply((try? JSONEncoder.elliott.encode(capture.batch(since: cursor))) ?? Data("{}".utf8))
     }
 
+    private let processCache = ProcessSnapshotCache()
+
     func processes(reply: @escaping (Data) -> Void) {
-        reply((try? JSONEncoder.elliott.encode(ProcessTable.snapshot(withArgs: true))) ?? Data("[]".utf8))
+        reply((try? JSONEncoder.elliott.encode(processCache.snapshot(withArgs: true))) ?? Data("[]".utf8))
     }
 
     func terminate(pid: Int32, startedAt: Double, reply: @escaping (String?) -> Void) {
@@ -116,6 +141,8 @@ final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
         return (out, p.terminationStatus == 0 ? nil : out.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }
+
+if CommandLine.arguments.count > 1 && CommandLine.arguments[1] == "--pcap" { PcapChild.run() }
 
 // The unprivileged packet-parsing process (started by NameCapture).
 if CommandLine.arguments.count > 1 && CommandLine.arguments[1] == "--capture" {

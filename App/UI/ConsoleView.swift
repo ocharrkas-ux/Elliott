@@ -71,6 +71,25 @@ struct ConsoleView: View {
     @State private var showInspector = true
     @AppStorage("console.hide") private var hideRaw = ""
     @AppStorage("console.hideSigners") private var hideSignersRaw = ""
+    @AppStorage("console.hideApps") private var hideAppsRaw = ""      // process paths, newline-separated
+    @AppStorage("console.hideText") private var hideTextRaw = ""      // user patterns, newline-separated
+    @State private var editingHideText = false
+
+    private var hiddenApps: Set<String> { Set(hideAppsRaw.split(separator: "\n").map(String.init)) }
+    private var hideTexts: [String] { hideTextRaw.split(separator: "\n").map(String.init) }
+    private var hideCount: Int { hidden.count + hiddenSigners.count + hiddenApps.count + hideTexts.count }
+    private func showEverything() { hideRaw = ""; hideSignersRaw = ""; hideAppsRaw = ""; hideTextRaw = "" }
+    private func toggleApp(_ path: String) {
+        var h = hiddenApps
+        if h.contains(path) { h.remove(path) } else { h.insert(path) }
+        hideAppsRaw = h.sorted().joined(separator: "\n")
+    }
+    /// Applications present in the console, most connections first.
+    private var appsPresent: [(path: String, name: String, count: Int)] {
+        var counts: [String: (String, Int)] = [:]
+        for p in model.profiles.values { counts[p.processPath] = (p.appName, (counts[p.processPath]?.1 ?? 0) + 1) }
+        return counts.map { ($0.key, $0.value.0, $0.value.1) }.sorted { $0.count > $1.count }
+    }
 
     private var hidden: Set<HideOption> { Set(hideRaw.split(separator: ",").compactMap { HideOption(rawValue: String($0)) }) }
     private var hiddenSigners: Set<String> { Set(hideSignersRaw.split(separator: ",").map(String.init)) }
@@ -125,7 +144,13 @@ struct ConsoleView: View {
             case .processAlerts: if p.edr == nil { return nil }
             case .vulnerable: if p.vuln == nil { return nil }
             }
-            if hidden.contains(where: { $0.hides(row) }) || hiddenSigners.contains(signerKey(row.signer)) { return nil }
+            if hidden.contains(where: { $0.hides(row) }) || hiddenSigners.contains(signerKey(row.signer))
+                || hiddenApps.contains(p.processPath) { return nil }
+            if !hideTexts.isEmpty {
+                let fields = [p.appName, p.processPath, p.destination, p.hostname ?? "", row.summary, row.signerName,
+                              p.addresses.joined(separator: " ")]
+                if hideTexts.contains(where: { t in fields.contains { HideText.matches(t, $0) } }) { return nil }
+            }
             if !q.isEmpty && ![p.appName, p.processPath, p.destination, p.hostname ?? "", row.summary, row.signerName,
                                p.addresses.joined(separator: " ")].contains(where: { $0.lowercased().contains(q) }) {
                 return nil
@@ -181,7 +206,7 @@ struct ConsoleView: View {
                 SummaryCell(summary: r.summary, analyzing: model.analyzingID == r.id)
             }.width(min: 200, ideal: 420)
             TableColumn("Seen", value: \.count) { (r: ConsoleRow) in Text(String(r.count)).monospacedDigit() }.width(50)
-            TableColumn("Last", value: \.lastSeen) { (r: ConsoleRow) in Text(r.lastSeen, style: .relative).foregroundStyle(.secondary) }
+            TableColumn("Last", value: \.lastSeen) { (r: ConsoleRow) in Text(Ago.text(r.lastSeen)).foregroundStyle(.secondary) }
                 .width(90)
             }
         }
@@ -204,6 +229,19 @@ struct ConsoleView: View {
                         Button("Trust Everything Signed by \(s.display)") { model.setSignerTrust(s, .allow) }
                         Button("Block Everything Signed by \(s.display)") { model.setSignerTrust(s, .deny) }
                     }
+                }
+            }
+            Divider()
+            let paths = Set(ps.map(\.processPath))
+            Button(paths.count == 1 ? "Hide \(ps.first!.appName)" : "Hide These \(paths.count) Apps") {
+                hideAppsRaw = hiddenApps.union(paths).sorted().joined(separator: "\n")
+                selection.removeAll()
+            }
+            let hideSigners = Set(ps.map { signerKey($0.signer) })
+            if hideSigners.count == 1, let s = ps.first?.signer {
+                Button("Hide Everything Signed by \(s.display)") {
+                    hideSignersRaw = hiddenSigners.union(hideSigners).sorted().joined(separator: ",")
+                    selection.removeAll()
                 }
             }
             Divider()
@@ -235,18 +273,32 @@ struct ConsoleView: View {
                             Toggle(o.label, isOn: Binding(get: { hidden.contains(o) }, set: { _ in toggle(o) }))
                         }
                     }
-                    Section("Hide signers") {
+                    Menu("Hide signers") {
                         ForEach(signersPresent, id: \.key) { s in
                             Toggle("\(s.name) (\(s.count))", isOn: Binding(get: { hiddenSigners.contains(s.key) }, set: { _ in toggleSigner(s.key) }))
                         }
                     }
+                    Menu("Hide applications") {
+                        ForEach(appsPresent, id: \.path) { a in
+                            Toggle("\(a.name) (\(a.count))", isOn: Binding(get: { hiddenApps.contains(a.path) }, set: { _ in toggleApp(a.path) }))
+                        }
+                        // Hidden apps with no connections left still need a way back.
+                        let gone = hiddenApps.subtracting(appsPresent.map(\.path))
+                        if !gone.isEmpty {
+                            Divider()
+                            ForEach(gone.sorted(), id: \.self) { path in
+                                Toggle((path as NSString).lastPathComponent, isOn: Binding(get: { true }, set: { _ in toggleApp(path) }))
+                            }
+                        }
+                    }
+                    Button(hideTexts.isEmpty ? "Hide Text…" : "Hide Text (\(hideTexts.count))…") { editingHideText = true }
                     Divider()
-                    Button("Show Everything") { hideRaw = ""; hideSignersRaw = "" }.disabled(hidden.isEmpty && hiddenSigners.isEmpty)
+                    Button("Show Everything") { showEverything() }.disabled(hideCount == 0)
                 } label: {
-                    Label(hidden.isEmpty && hiddenSigners.isEmpty ? "Hide" : "Hide (\(hidden.count + hiddenSigners.count))",
-                          systemImage: hidden.isEmpty && hiddenSigners.isEmpty ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                    Label(hideCount == 0 ? "Hide" : "Hide (\(hideCount))",
+                          systemImage: hideCount == 0 ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
                 }
-                .help("Hide connections by decision, signer, risk, direction…")
+                .help("Hide connections by decision, signer, application, text, risk, direction…")
             }
             ToolbarItem {
                 Picker("Show", selection: $filter) { ForEach(Filter.allCases) { Text($0.rawValue).tag($0) } }
@@ -275,13 +327,14 @@ struct ConsoleView: View {
             .inspectorColumnWidth(min: 300, ideal: 360, max: 520)
         }
         .navigationTitle("connections")
+        .sheet(isPresented: $editingHideText) { HideTextSheet(raw: $hideTextRaw) }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if hiddenCount > 0 && !(hidden.isEmpty && hiddenSigners.isEmpty && filter == .all && search.isEmpty) {
+            if hiddenCount > 0 && !(hideCount == 0 && filter == .all && search.isEmpty) {
                 HStack {
                     Image(systemName: "eye.slash")
                     Text("\(hiddenCount) of \(model.profiles.count) connections hidden by filters")
                     Spacer()
-                    Button("Show Everything") { hideRaw = ""; hideSignersRaw = ""; filter = .all; search = "" }.buttonStyle(.bordered)
+                    Button("Show Everything") { showEverything(); filter = .all; search = "" }.buttonStyle(.bordered)
                 }
                 .font(.caption).foregroundStyle(Theme.dim)
                 .padding(.horizontal, 14).padding(.vertical, 6)
@@ -498,6 +551,8 @@ struct ProfileDetail: View {
                     }.padding(4)
                 }
 
+                CaptureBox(profile: p)
+
                 GroupBox("Details") {
                     Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
                         row("Path", p.processPath)
@@ -571,5 +626,59 @@ struct SummaryCell: View {
         } else {
             Text(summary).lineLimit(2)
         }
+    }
+}
+
+/// Free-text hide patterns: case-insensitive substring, or a wildcard pattern when it contains "*".
+enum HideText {
+    static func matches(_ pattern: String, _ field: String) -> Bool {
+        let p = pattern.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !p.isEmpty else { return false }
+        let f = field.lowercased()
+        guard p.contains("*") else { return f.contains(p) }
+        let regex = "^" + p.split(separator: "*", omittingEmptySubsequences: false)
+            .map { NSRegularExpression.escapedPattern(for: String($0)) }.joined(separator: ".*") + "$"
+        return f.range(of: regex, options: .regularExpression) != nil
+    }
+}
+
+struct HideTextSheet: View {
+    @Binding var raw: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var new = ""
+    private var items: [String] { raw.split(separator: "\n").map(String.init) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Hide connections containing text").font(.headline)
+            Text("Matches app name, path, destination, hostname, IPs, signer and description, ignoring case. Use * as a wildcard over a whole field (e.g. *.apple.com or 17.*).")
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                TextField("Text or pattern", text: $new).onSubmit(add)
+                Button("Add", action: add).disabled(new.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            List {
+                ForEach(items, id: \.self) { t in
+                    HStack {
+                        Text(t).font(.body.monospaced())
+                        Spacer()
+                        Button { raw = items.filter { $0 != t }.joined(separator: "\n") } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                    }
+                }
+            }
+            .frame(minHeight: 160)
+            .overlay { if items.isEmpty { Text("No text filters").foregroundStyle(.secondary) } }
+            HStack { Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.defaultAction) }
+        }
+        .padding(20)
+        .frame(width: 440)
+    }
+
+    private func add() {
+        let t = new.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\n", with: " ")
+        guard !t.isEmpty, !items.contains(t) else { return }
+        raw = (items + [t]).joined(separator: "\n")
+        new = ""
     }
 }

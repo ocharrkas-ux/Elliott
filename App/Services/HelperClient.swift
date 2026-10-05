@@ -154,6 +154,60 @@ final class HelperClient: ObservableObject {
         }
     }
 
+    // MARK: Packet capture
+
+    func startPcap(_ spec: PcapSpec) async -> String? {
+        guard connected, connection != nil else { return "The helper isn't running (Settings → Install Helper)." }
+        guard let data = try? JSONEncoder().encode(spec) else { return "bad capture request" }
+        return await withCheckedContinuation { cont in
+            let once = Once<String?>(cont)
+            let proxy = connection?.remoteObjectProxyWithErrorHandler { e in once.resume(e.localizedDescription) } as? HelperXPC
+            guard let proxy else { return once.resume("helper not connected") }
+            proxy.startPcap(spec: data) { once.resume($0) }
+        }
+    }
+
+    func updatePcap(_ spec: PcapSpec) async -> Bool {
+        guard connected, let data = try? JSONEncoder().encode(spec) else { return false }
+        return await withCheckedContinuation { cont in
+            let once = Once<Bool>(cont)
+            let proxy = connection?.remoteObjectProxyWithErrorHandler { _ in once.resume(false) } as? HelperXPC
+            guard let proxy else { return once.resume(false) }
+            proxy.updatePcap(spec: data) { once.resume($0) }
+        }
+    }
+
+    func stopPcap(_ id: UUID) async -> Bool {
+        guard connected else { return false }
+        return await withCheckedContinuation { cont in
+            let once = Once<Bool>(cont)
+            let proxy = connection?.remoteObjectProxyWithErrorHandler { _ in once.resume(false) } as? HelperXPC
+            guard let proxy else { return once.resume(false) }
+            proxy.stopPcap(id: id.uuidString) { once.resume($0) }
+        }
+    }
+
+    func pcaps() async -> [PcapStatus]? {
+        guard connected else { return nil }
+        let data: Data? = await withCheckedContinuation { cont in
+            let once = Once<Data?>(cont)
+            let proxy = connection?.remoteObjectProxyWithErrorHandler { _ in once.resume(nil) } as? HelperXPC
+            guard let proxy else { return once.resume(nil) }
+            proxy.pcaps { once.resume($0) }
+        }
+        return data.flatMap { try? JSONDecoder.elliott.decode([PcapStatus].self, from: $0) }
+    }
+
+    func deletePcap(_ path: String) async -> Bool {
+        guard connected else { return false }
+        return await withCheckedContinuation { cont in
+            let once = Once<Bool>(cont)
+            let proxy = connection?.remoteObjectProxyWithErrorHandler { _ in once.resume(false) } as? HelperXPC
+            guard let proxy else { return once.resume(false) }
+            proxy.deletePcap(path: path) { once.resume($0) }
+        }
+    }
+
     func clear() async -> String? {
         guard connection != nil else { return nil }
         return await withCheckedContinuation { cont in

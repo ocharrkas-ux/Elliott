@@ -154,10 +154,37 @@ struct IPv4Set {
     }
 
     /// First "a.b.c.d" or "a.b.c.d/nn" in a line (plain lists, netsets, Spamhaus JSON lines, IPsum "ip<TAB>n").
+    /// Hand-rolled (lists run to hundreds of thousands of lines; a regex per line is far slower).
     static func firstRange(in line: String) -> (UInt32, UInt32)? {
-        guard let m = line.firstMatch(of: /(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?:\/(\d{1,2}))?/),
-              let base = parse(String(m.1)) else { return nil }
-        let bits = m.2.flatMap { Int($0) } ?? 32
+        let b = Array(line.utf8)
+        func isDigit(_ i: Int) -> Bool { i < b.count && b[i] >= 48 && b[i] <= 57 }
+        var i = 0
+        while i < b.count {
+            guard isDigit(i), i == 0 || !isDigit(i - 1) else { i += 1; continue }
+            // Try "a.b.c.d" starting here: four 1–3 digit octets.
+            var j = i, octets: [UInt32] = []
+            while octets.count < 4 {
+                let start = j
+                var v: UInt32 = 0
+                while isDigit(j) && j - start < 3 { v = v * 10 + UInt32(b[j] - 48); j += 1 }
+                guard j > start, v < 256, !isDigit(j) else { break }
+                octets.append(v)
+                if octets.count < 4 { guard j < b.count, b[j] == 46 else { break }; j += 1 }   // "."
+            }
+            guard octets.count == 4 else { i += 1; continue }
+            let base = octets.reduce(0) { $0 << 8 | $1 }
+            var bits = 32
+            if j + 1 < b.count, b[j] == 47, isDigit(j + 1) {   // "/nn"
+                var k = j + 1, n = 0
+                while isDigit(k) && k - j <= 2 { n = n * 10 + Int(b[k] - 48); k += 1 }
+                bits = n
+            }
+            return range(base: base, bits: bits)
+        }
+        return nil
+    }
+
+    private static func range(base: UInt32, bits: Int) -> (UInt32, UInt32)? {
         guard (0...32).contains(bits) else { return nil }
         let mask: UInt32 = bits == 0 ? 0 : ~UInt32(0) << (32 - bits)
         return (base & mask, (base & mask) | ~mask)
@@ -208,6 +235,7 @@ final class ThreatIntel: @unchecked Sendable {
     private let dir: URL
     private let lock = NSLock()
     private var sets: [String: IPv4Set] = [:]
+    private var parsedAt: [String: Date] = [:]   // file modification date each loaded set came from
     private(set) var status: [String: FeedStatus] = [:]
 
     init(directory: URL) {
@@ -244,6 +272,12 @@ final class ThreatIntel: @unchecked Sendable {
                 error = e.localizedDescription   // keep using the cached copy, if any
             }
         }
+        let current = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        // Unchanged file already loaded: nothing to parse.
+        if let current, lock.withLock({ parsedAt[feed.id] == current && sets[feed.id] != nil }) {
+            if let error { lock.withLock { status[feed.id]?.error = error } }
+            return
+        }
         guard let text = try? String(contentsOf: file, encoding: .utf8) else {
             lock.withLock { status[feed.id] = FeedStatus(entries: 0, updated: nil, error: error ?? "not downloaded") }
             return
@@ -252,6 +286,7 @@ final class ThreatIntel: @unchecked Sendable {
         let updated = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
         lock.withLock {
             sets[feed.id] = set
+            parsedAt[feed.id] = updated
             status[feed.id] = FeedStatus(entries: set.count, updated: updated, error: error)
         }
     }
@@ -273,7 +308,7 @@ final class ThreatIntel: @unchecked Sendable {
 
     var staleFeeds: [String] { lock.withLock { status.filter { $0.value.stale }.map(\.key).sorted() } }
 
-    func drop(_ feedID: String) { lock.withLock { sets[feedID] = nil; status[feedID] = nil } }
+    func drop(_ feedID: String) { lock.withLock { sets[feedID] = nil; status[feedID] = nil; parsedAt[feedID] = nil } }
 
     func hits(for ip: String, feeds: [Feed]) -> [IntelHit] {
         guard IPv4Set.isGlobal(ip) else { return [] }

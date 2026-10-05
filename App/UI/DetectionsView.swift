@@ -85,7 +85,7 @@ struct DetectionsView: View {
             Divider()
             switch tab {
             case .findings: findingsTable
-            case .processes: ProcessesTable()
+            case .processes: ProcessesTable(store: model.processStore)
             }
         }
         .searchable(text: $search, placement: .toolbar, prompt: "Title, path, command line, MITRE ID")
@@ -152,7 +152,7 @@ struct DetectionsView: View {
                 AssessmentLabel(triage: r.f.triage, pending: model.triagingID == r.id)
             }.width(min: 110, ideal: 150)
             TableColumn("Seen", value: \.count) { Text("\($0.count)").monospacedDigit() }.width(45)
-            TableColumn("Last", value: \.lastSeen) { Text($0.lastSeen, style: .relative).foregroundStyle(Theme.dim) }.width(90)
+            TableColumn("Last", value: \.lastSeen) { Text(Ago.text($0.lastSeen)).foregroundStyle(Theme.dim) }.width(90)
         }
         .contextMenu(forSelectionType: UUID.self) { ids in
             Button("Acknowledge") { model.setStatus(ids, .acknowledged) }
@@ -320,6 +320,7 @@ struct FindingDetail: View {
 
 struct ProcessesTable: View {
     @EnvironmentObject var model: AppModel
+    @ObservedObject var store: ProcessStore
     @State private var sortOrder = [KeyPathComparator(\ProcRow.start, order: .reverse)]
     @State private var onlyFlagged = false
 
@@ -337,8 +338,8 @@ struct ProcessesTable: View {
     }
 
     var body: some View {
-        let byPID = Dictionary(model.processes.map { ($0.pid, $0) }, uniquingKeysWith: { a, _ in a })
-        let rows = model.processes.compactMap { p -> ProcRow? in
+        let byPID = Dictionary(store.list.map { ($0.pid, $0) }, uniquingKeysWith: { a, _ in a })
+        let rows = store.list.compactMap { p -> ProcRow? in
             let flagged = model.openFindings.filter { $0.path == p.path && !p.path.isEmpty }.map(\.severity.rawValue).max() ?? -1
             if onlyFlagged && flagged < 0 { return nil }
             return ProcRow(p: p, signer: p.path.isEmpty ? "?" : model.edr.identity(p.path).label, flagged: flagged,
@@ -348,7 +349,7 @@ struct ProcessesTable: View {
             HStack {
                 Toggle("Only programs with detections", isOn: $onlyFlagged)
                 Spacer()
-                Text("\(model.processes.count) processes · \(model.helper.connected ? "full command lines (helper)" : "command lines for your own processes only")")
+                Text("\(store.list.count) processes · \(model.helper.connected ? "full command lines (helper)" : "command lines for your own processes only")")
                     .font(.caption).foregroundStyle(Theme.dim)
             }
             .padding(.horizontal, 16).padding(.vertical, 6)
@@ -367,7 +368,7 @@ struct ProcessesTable: View {
                     Text(r.signer).foregroundStyle(r.signer == "unsigned" || r.signer == "ad-hoc" ? Theme.amber : Theme.dim)
                 }.width(110)
                 TableColumn("Parent", value: \.parent) { Text($0.parent).lineLimit(1) }.width(min: 90, ideal: 120)
-                TableColumn("Started", value: \.start) { Text($0.start, style: .relative).foregroundStyle(Theme.dim) }.width(90)
+                TableColumn("Started", value: \.start) { Text(Ago.text($0.start)).foregroundStyle(Theme.dim) }.width(90)
                 TableColumn("Command") { r in
                     Text(r.p.commandLine ?? r.path).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
                         .help(r.p.commandLine ?? r.path)

@@ -319,7 +319,7 @@ struct NetworkConnectionsView: View {
                     TableColumn("Intel") { IntelBadge(intel: $0.profile.intel) }.width(80)
                     TableColumn("Risk", value: \.risk) { RiskBadge(score: $0.risk, pending: $0.profile.analysis == nil) }.width(100)
                     TableColumn("What it's doing") { Text($0.profile.analysis?.description ?? "—").lineLimit(2).foregroundStyle(.secondary) }
-                    TableColumn("Last", value: \.lastSeen) { Text($0.lastSeen, style: .relative).foregroundStyle(Theme.dim) }.width(90)
+                    TableColumn("Last", value: \.lastSeen) { Text(Ago.text($0.lastSeen)).foregroundStyle(Theme.dim) }.width(90)
                 }
                 .searchable(text: $search, placement: .toolbar, prompt: "Device, app, destination")
             } else {
@@ -356,7 +356,7 @@ struct NetworkDetectionsView: View {
                         TableColumn("Detection") { Text($0.f.title).lineLimit(1) }.width(min: 200, ideal: 300)
                         TableColumn("Target") { Text($0.f.target).lineLimit(1) }.width(min: 100, ideal: 150)
                         TableColumn("LLM triage") { AssessmentLabel(triage: $0.f.triage, pending: false) }.width(min: 110, ideal: 150)
-                        TableColumn("Last", value: \.lastSeen) { Text($0.lastSeen, style: .relative).foregroundStyle(Theme.dim) }.width(90)
+                        TableColumn("Last", value: \.lastSeen) { Text(Ago.text($0.lastSeen)).foregroundStyle(Theme.dim) }.width(90)
                     }
                 }
             } else {

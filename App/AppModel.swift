@@ -89,6 +89,22 @@ enum RuleScope: String, CaseIterable, Identifiable {
     }
 }
 
+/// What the user asked to capture: an application, a destination (IP, FQDN or *.domain), or both.
+struct CaptureTarget: Hashable {
+    var appPath: String?
+    var appName: String?
+    var destination: String?
+    var label: String { "\(appName ?? "any app") → \(destination ?? "anywhere")" }
+    func covers(_ p: Profile) -> Bool {
+        if let appPath, appPath != p.processPath { return false }
+        if let destination {
+            return Rule.hostMatches(destination, addresses: [], hostname: p.hostname, address: p.key.host)
+                || p.addresses.contains(destination)
+        }
+        return true
+    }
+}
+
 /// Who a rule covers and where it goes, chosen separately in the console.
 struct RuleTarget: Hashable {
     enum Who: Hashable { case app, signer, anyApp }
@@ -167,7 +183,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var intelRevision = 0
     @Published var section: MainSection = .console
     @Published private(set) var findings: [Finding] = []
-    @Published private(set) var processes: [ProcInfo] = []
+    /// Processes live in their own store: they change every few seconds, and only the Processes table shows them.
+    let processStore = ProcessStore()
+    var processes: [ProcInfo] { processStore.list }
     @Published private(set) var launchItems: [LaunchItem] = []
     @Published private(set) var triagingID: UUID?
     @Published private(set) var vulnFindings: [VulnFinding] = []
@@ -201,6 +219,10 @@ final class AppModel: ObservableObject {
     private(set) lazy var threatIntel = ThreatIntel(directory: dir)
     let edr = EDRMonitor()
     private var triageQueue: [UUID] = []
+    @Published private(set) var pcaps: [PcapStatus] = []
+    private var activeCaptures: [UUID: (target: CaptureTarget, spec: PcapSpec)] = [:]
+    private var capturePoller: Task<Void, Never>?
+    nonisolated let processCache = ProcessSnapshotCache()
     /// Detections the user marked benign and then cleared: they stay silenced.
     private var suppressedFindingKeys: Set<String> = []
     private var reachQueue: [String] = []
@@ -242,6 +264,7 @@ final class AppModel: ObservableObject {
     /// monitors, talk to the helper or run scheduled jobs.
     static let isTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
+
     init() {
         if Self.isTestHost {
             dir = FileManager.default.temporaryDirectory.appendingPathComponent("ElliottTestHost-\(UUID().uuidString)", isDirectory: true)
@@ -270,7 +293,9 @@ final class AppModel: ObservableObject {
         filter.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &bag)
 
         Timer.publish(every: 1, on: .main, in: .common).autoconnect().sink { [weak self] now in
-            self?.approvals.removeAll { $0.deadline < now }
+            // Only touch the published list when something expired: every change re-renders the window.
+            guard let self, self.approvals.contains(where: { $0.deadline < now }) else { return }
+            self.approvals.removeAll { $0.deadline < now }
         }.store(in: &bag)
         Timer.publish(every: 30, on: .main, in: .common).autoconnect().sink { [weak self] now in
             guard let self, self.rules.contains(where: { ($0.expires ?? .distantFuture) < now }) else { return }
@@ -677,6 +702,92 @@ final class AppModel: ObservableObject {
 
     func clearLiveLog() { recent.removeAll() }
 
+    // MARK: Packet capture
+
+    /// Starts recording an application's packets, a destination's, or an application's to a destination.
+    /// `destination` is an IP, an FQDN or "*.domain"; names are resolved and refreshed while recording.
+    func startCapture(_ t: CaptureTarget, minutes: Int = 60, maxMB: Int = 200) async -> String? {
+        var spec = await captureSpec(t, id: UUID())
+        spec.maxSeconds = max(1, minutes) * 60
+        spec.maxBytes = max(1, maxMB) * 1024 * 1024
+        if t.destination != nil && !spec.hasDestination {
+            return "Elliott doesn't know any addresses for \(t.destination!) yet."
+        }
+        guard spec.isValid else { return "Choose an application, a destination, or both." }
+        if let err = await helper.startPcap(spec) { return err }
+        activeCaptures[spec.id] = (t, spec)
+        await refreshCaptures()
+        startCapturePolling()
+        return nil
+    }
+
+    func stopCapture(_ id: UUID) async {
+        _ = await helper.stopPcap(id)
+        activeCaptures[id] = nil
+        try? await Task.sleep(for: .seconds(1))
+        await refreshCaptures()
+    }
+
+    func deleteCapture(_ c: PcapStatus) async {
+        _ = await helper.deletePcap(c.file)
+        await refreshCaptures()
+    }
+
+    func refreshCaptures() async {
+        if let list = await helper.pcaps(), list != pcaps { pcaps = list }
+        for id in activeCaptures.keys where pcaps.first(where: { $0.id == id })?.running != true { activeCaptures[id] = nil }
+    }
+
+    /// Captures running for a connection's app and/or destination (for the console's detail pane).
+    func captures(for p: Profile) -> [PcapStatus] {
+        let ids = activeCaptures.filter { $0.value.target.covers(p) }.keys
+        return pcaps.filter { ids.contains($0.id) && $0.running }
+    }
+
+    private func startCapturePolling() {
+        guard capturePoller == nil else { return }
+        capturePoller = Task { [weak self] in
+            var tick = 0
+            while !Task.isCancelled, let self, !self.activeCaptures.isEmpty {
+                try? await Task.sleep(for: .seconds(2))
+                await self.refreshCaptures()
+                tick += 1
+                if tick % 10 == 0 {   // every ~20 s: new IPs for the destination, new pids for the app
+                    for (id, a) in self.activeCaptures {
+                        let fresh = await self.captureSpec(a.target, id: id, limitsFrom: a.spec)
+                        if fresh != a.spec, fresh.isValid, await self.helper.updatePcap(fresh) {
+                            self.activeCaptures[id] = (a.target, fresh)
+                        }
+                    }
+                }
+            }
+            self?.capturePoller = nil
+        }
+    }
+
+    private func captureSpec(_ t: CaptureTarget, id: UUID, limitsFrom old: PcapSpec? = nil) async -> PcapSpec {
+        var spec = old ?? PcapSpec(label: t.label)
+        spec.id = id
+        if let path = t.appPath {
+            spec.processNames = [(path as NSString).lastPathComponent]
+            spec.pids = await Task.detached { ProcessTable.snapshot(withArgs: false).filter { $0.path == path }.map(\.pid) }.value
+        }
+        if let d = t.destination {
+            var ips: Set<String> = []
+            if RiskHeuristics.isIPLiteral(d) {
+                ips.insert(d)
+            } else {
+                for p in profiles.values where p.key.direction == .outbound {
+                    if let h = p.hostname, Rule.hostMatches(d, addresses: [], hostname: h, address: "") { ips.formUnion(p.addresses) }
+                }
+                let name = d.hasPrefix("*.") ? String(d.dropFirst(2)) : d
+                ips.formUnion(await Task.detached { Self.resolve(name) }.value)
+            }
+            spec.addresses = ips.sorted()
+        }
+        return spec
+    }
+
     /// Removes every EDR detection. Ones marked benign stay silenced; anything still happening is detected afresh.
     func clearDetections() {
         suppressedFindingKeys.formUnion(findings.filter { $0.status == .benign }.map(\.key))
@@ -1004,7 +1115,10 @@ final class AppModel: ObservableObject {
         if settings.llm != old.llm || settings.suggestionsEnabled != old.suggestionsEnabled {
             analysisFailures.removeAll(); pumpAnalysis()
         }
-        if settings.intel != old.intel { Task { await refreshIntel() } }
+        // lastRefresh is written by refreshIntel itself; comparing it would re-trigger the refresh forever.
+        var oldIntel = old.intel, newIntel = settings.intel
+        oldIntel.lastRefresh = nil; newIntel.lastRefresh = nil
+        if newIntel != oldIntel { Task { await refreshIntel() } }
         if settings.edr != old.edr {
             edr.minerDetection = settings.edr.minerDetection
             if settings.edr.enabled { edr.start() } else { edr.stop() }
@@ -1316,10 +1430,18 @@ final class AppModel: ObservableObject {
         edr.fetch = { [weak self] in
             // Root's view (complete command lines) when the helper is installed.
             if let procs = await self?.helper.processes(), !procs.isEmpty { return procs }
-            return ProcessTable.snapshot(withArgs: true)
+            return self?.processCache.snapshot(withArgs: true) ?? []
         }
         edr.onObservations = { [weak self] obs in Task { @MainActor in self?.observe(obs) } }
-        edr.onProcesses = { [weak self] procs in Task { @MainActor in self?.processes = procs } }
+        // Publishing re-renders every view; only do it when the set of processes actually changed.
+        edr.onProcesses = { [weak self] procs in
+            Task { @MainActor in
+                guard let self else { return }
+                if procs.count != self.processes.count || zip(procs, self.processes).contains(where: { $0.pid != $1.pid || $0.start != $1.start }) {
+                    self.processStore.list = procs
+                }
+            }
+        }
         edr.onLaunchItems = { [weak self] items, baseline in
             Task { @MainActor in
                 guard let self else { return }
@@ -1939,4 +2061,10 @@ final class AppModel: ObservableObject {
             if !StateGuard.signingEstablished, helper.connected { _ = await helper.markStateSigned() }
         }
     }
+}
+
+/// The running-process list (see AppModel.processStore).
+@MainActor
+final class ProcessStore: ObservableObject {
+    @Published var list: [ProcInfo] = []
 }

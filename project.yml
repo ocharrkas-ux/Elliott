@@ -43,7 +43,7 @@ targets:
   ElliottHelper:
     type: tool
     platform: macOS
-    sources: [Helper/main.swift, Helper/NameCapture.swift, Shared]
+    sources: [Helper/main.swift, Helper/NameCapture.swift, Helper/PcapRecorder.swift, Shared]
     dependencies:
       - sdk: libpcap.tbd
     settings:

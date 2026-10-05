@@ -1249,4 +1249,120 @@ final class ElliottTests: XCTestCase {
         model.observe([obs("a"), obs("b")])
         XCTAssertEqual(model.findings.map(\.key), ["b"], "benign stays silenced; others are detected again")
     }
+
+    // MARK: Console hide text, packet capture
+
+    func testHideTextMatching() {
+        XCTAssertTrue(HideText.matches("apple", "api.Apple.com"))
+        XCTAssertTrue(HideText.matches("*.apple.com", "gs.apple.com"))
+        XCTAssertFalse(HideText.matches("*.apple.com", "apple.com.evil.net"))
+        XCTAssertTrue(HideText.matches("17.*", "17.253.144.10"))
+        XCTAssertFalse(HideText.matches("17.*", "117.1.1.1"))
+        XCTAssertFalse(HideText.matches("  ", "anything"))
+    }
+
+    /// A synthetic pktap header + IPv4/TCP frame on a raw-IP (utun) interface.
+    func pktapPacket(pid: Int32, comm: String, epid: Int32 = 0, ecomm: String = "", src: [UInt8], dst: [UInt8], sport: UInt16 = 50000, dport: UInt16 = 443) -> [UInt8] {
+        var h = [UInt8](repeating: 0, count: 156)
+        func put32(_ v: UInt32, _ o: Int) { withUnsafeBytes(of: v.littleEndian) { for (i, b) in $0.enumerated() { h[o + i] = b } } }
+        func putStr(_ s: String, _ o: Int) { for (i, b) in s.utf8.enumerated() { h[o + i] = b } }
+        put32(156, 0); put32(1, 4); put32(12, 8); putStr("utun4", 12)
+        put32(UInt32(bitPattern: pid), 52); putStr(comm, 56)
+        put32(UInt32(bitPattern: epid), 84); putStr(ecomm, 88)
+        var ip: [UInt8] = [0x45, 0, 0, 40, 0, 0, 0x40, 0, 64, 6, 0, 0] + src + dst
+        ip += [UInt8(sport >> 8), UInt8(sport & 0xFF), UInt8(dport >> 8), UInt8(dport & 0xFF)] + [UInt8](repeating: 0, count: 8) + [0x50, 0x12] + [UInt8](repeating: 0, count: 6)
+        return h + ip
+    }
+
+    func testPktapParseAndCaptureMatching() throws {
+        let pkt = pktapPacket(pid: 812, comm: "Slack Helper (Re", epid: 99, ecomm: "nsurlsessiond", src: [10, 0, 0, 5], dst: [3, 5, 7, 9])
+        let meta = try XCTUnwrap(pkt.withUnsafeBytes { PktapMeta.parse($0) })
+        XCTAssertEqual(meta.headerLength, 156)
+        XCTAssertEqual(meta.dlt, 12)
+        XCTAssertEqual(meta.interface, "utun4")
+        XCTAssertEqual(meta.pid, 812)
+        XCTAssertEqual(meta.command, "Slack Helper (Re")
+        XCTAssertEqual(meta.effectiveCommand, "nsurlsessiond")
+        let ends = try XCTUnwrap(PacketParse.ipEndpoints(frame: pkt[156...], linkType: 12))
+        XCTAssertEqual(ends.src, "10.0.0.5"); XCTAssertEqual(ends.dst, "3.5.7.9")
+
+        // Kernel names are the first 16 bytes of the executable name.
+        let app = PcapMatcher(PcapSpec(label: "", processNames: ["Slack Helper (Renderer)"]))
+        XCTAssertTrue(app.matches(meta, src: ends.src, dst: ends.dst))
+        let dest = PcapMatcher(PcapSpec(label: "", addresses: ["3.5.7.9"]))
+        XCTAssertTrue(dest.matches(meta, src: ends.src, dst: ends.dst))
+        let both = PcapMatcher(PcapSpec(label: "", processNames: ["Slack Helper (Renderer)"], addresses: ["8.8.8.8"]))
+        XCTAssertFalse(both.matches(meta, src: ends.src, dst: ends.dst), "both: the destination must match too")
+        let other = PcapMatcher(PcapSpec(label: "", processNames: ["curl"], addresses: ["3.5.7.9"]))
+        XCTAssertFalse(other.matches(meta, src: ends.src, dst: ends.dst), "both: the app must match too")
+        XCTAssertTrue(PcapMatcher(PcapSpec(label: "", pids: [99])).matches(meta, src: nil, dst: nil), "traffic sent on the app's behalf")
+        XCTAssertFalse(PcapMatcher(PcapSpec(label: "")).matches(meta, src: ends.src, dst: ends.dst), "an empty spec records nothing")
+        XCTAssertEqual(PcapMatcher.canonicalIP("2001:DB8::0:1%en0"), "2001:db8::1")
+        XCTAssertNil(PktapMeta.parse(UnsafeRawBufferPointer(start: nil, count: 0)))
+    }
+
+    func testPcapNGFileStructure() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("t-\(UUID()).pcapng")
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+        let h = try FileHandle(forWritingTo: url)
+        let w = PcapNGWriter(handle: h)
+        let pkt = pktapPacket(pid: 1, comm: "curl", src: [10, 0, 0, 5], dst: [3, 5, 7, 9])
+        for _ in 0..<2 {
+            pkt.withUnsafeBytes { raw in
+                w.packet(interface: "utun4", dlt: 12, time: (1_700_000_000, 5), data: UnsafeRawBufferPointer(rebasing: raw[156...]),
+                         originalLength: pkt.count - 156, comment: "curl (1)")
+            }
+        }
+        try h.close()
+        let d = try Data(contentsOf: url)
+        XCTAssertEqual(d.count, w.bytes)
+        func u32(_ o: Int) -> UInt32 { d.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: UInt32.self) } }
+        func u16(_ o: Int) -> UInt16 { d.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: UInt16.self) } }
+        var off = 0, types: [UInt32] = []
+        while off < d.count {
+            let len = Int(u32(off + 4))
+            XCTAssertEqual(len % 4, 0); XCTAssertEqual(Int(u32(off + len - 4)), len, "trailing length")
+            types.append(u32(off))
+            if u32(off) == 1 { XCTAssertEqual(u16(off + 8), 101, "DLT_RAW written as LINKTYPE_RAW") }
+            if u32(off) == 6 { XCTAssertEqual(Int(u32(off + 20)), 40, "captured length") }
+            off += len
+        }
+        XCTAssertEqual(types, [0x0A0D0D0A, 1, 6, 6], "one interface block, reused")
+        XCTAssertEqual(u32(8), 0x1A2B3C4D)
+        XCTAssertTrue(d.range(of: Data("curl (1)".utf8)) != nil)
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    func testFlowAttributionHoldsOutgoingUntilReplyNamesProcess() {
+        let syn = pktapPacket(pid: -1, comm: "", src: [10, 0, 0, 5], dst: [3, 5, 7, 9])
+        let reply = pktapPacket(pid: 0, comm: "kernel_task", epid: 77, ecomm: "curl", src: [3, 5, 7, 9], dst: [10, 0, 0, 5], sport: 443, dport: 50000)
+        func parts(_ b: [UInt8]) -> (PktapMeta, FlowKey?) {
+            (b.withUnsafeBytes { PktapMeta.parse($0)! }, FlowKey(frame: b[156...], linkType: 12))
+        }
+        let (m1, f1) = parts(syn), (m2, f2) = parts(reply)
+        XCTAssertNotNil(f1)
+        XCTAssertEqual(f1, f2, "same connection in both directions")
+        XCTAssertFalse(m1.hasProcess); XCTAssertTrue(m2.hasProcess)
+        XCTAssertEqual(m2.label, "kernel_task (0) for curl (77)")
+
+        let curl = PcapMatcher(PcapSpec(label: "", processNames: ["curl"]))
+        var fa = FlowAttribution<String>()
+        XCTAssertTrue(fa.feed("syn", flow: f1, app: curl.appMatches(m1), who: m1.label, now: 0).isEmpty, "held")
+        let out = fa.feed("reply", flow: f2, app: curl.appMatches(m2), who: m2.label, now: 0.05)
+        XCTAssertEqual(out.map(\.0), ["syn", "reply"], "written in order once the reply names curl")
+        XCTAssertEqual(fa.feed("ack", flow: f1, app: nil, who: "", now: 0.1).map(\.1), ["kernel_task (0) for curl (77)"])
+
+        // Another app's connection: held, then dropped when its reply names someone else.
+        let other = PcapMatcher(PcapSpec(label: "", processNames: ["Safari"]))
+        var fb = FlowAttribution<String>()
+        _ = fb.feed("syn", flow: f1, app: other.appMatches(m1), who: "", now: 0)
+        XCTAssertTrue(fb.feed("reply", flow: f2, app: other.appMatches(m2), who: m2.label, now: 0.05).isEmpty)
+        XCTAssertTrue(fb.feed("ack", flow: f1, app: nil, who: "", now: 0.1).isEmpty)
+
+        // Never attributed: dropped after the hold time, not written later.
+        var fc = FlowAttribution<String>()
+        _ = fc.feed("syn", flow: f1, app: nil, who: "", now: 0)
+        _ = fc.feed("x", flow: nil, app: nil, who: "", now: 5)   // sweep
+        XCTAssertEqual(fc.feed("reply", flow: f2, app: true, who: "curl", now: 5.1).map(\.0), ["reply"])
+    }
 }

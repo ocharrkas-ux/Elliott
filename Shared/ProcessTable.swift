@@ -21,6 +21,11 @@ enum ProcessTable {
     /// Every process from the kernel's process table. Arguments are only readable for the caller's own processes
     /// unless running as root.
     static func snapshot(withArgs: Bool) -> [ProcInfo] {
+        snapshot { pid, _ in (path(pid) ?? "", withArgs ? arguments(pid) : nil) }
+    }
+
+    /// The process list with path and arguments from `details` (lets callers cache them per process).
+    static func snapshot(details: (Int32, Date) -> (String, [String]?)) -> [ProcInfo] {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
         var size = 0
         guard sysctl(&mib, 4, nil, &size, nil, 0) == 0, size > 0 else { return [] }
@@ -39,10 +44,10 @@ enum ProcessTable {
                 String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
             }
             let tv = kp.kp_proc.p_un.__p_starttime
+            let start = Date(timeIntervalSince1970: Double(tv.tv_sec) + Double(tv.tv_usec) / 1e6)
+            let (path, args) = details(pid, start)
             out.append(ProcInfo(pid: pid, ppid: kp.kp_eproc.e_ppid, uid: kp.kp_eproc.e_ucred.cr_uid,
-                                start: Date(timeIntervalSince1970: Double(tv.tv_sec) + Double(tv.tv_usec) / 1e6),
-                                name: comm, path: path(pid) ?? "",
-                                args: withArgs ? arguments(pid) : nil))
+                                start: start, name: comm, path: path, args: args))
         }
         return out
     }
@@ -109,5 +114,29 @@ enum ProcessTable {
         mach_timebase_info(&tb)
         let ticks = Double(info.ri_user_time + info.ri_system_time)
         return ticks * Double(tb.numer) / Double(tb.denom) / 1e9
+    }
+}
+
+/// Process snapshots that read each process's path and arguments once (polled every few seconds, almost every
+/// process is unchanged; reading ~800 argument vectors each time is most of the cost).
+final class ProcessSnapshotCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cache: [Int32: (start: Date, path: String, args: [String]?)] = [:]
+
+    func snapshot(withArgs: Bool) -> [ProcInfo] {
+        lock.withLock {
+            var next: [Int32: (start: Date, path: String, args: [String]?)] = [:]
+            let procs = ProcessTable.snapshot { pid, start in
+                if let c = cache[pid], c.start == start, !c.path.isEmpty, !withArgs || c.args != nil {
+                    next[pid] = c
+                    return (c.path, withArgs ? c.args : nil)
+                }
+                let d = (start: start, path: ProcessTable.path(pid) ?? "", args: withArgs ? ProcessTable.arguments(pid) : nil)
+                next[pid] = d
+                return (d.path, d.args)
+            }
+            cache = next   // exited processes drop out
+            return procs
+        }
     }
 }
