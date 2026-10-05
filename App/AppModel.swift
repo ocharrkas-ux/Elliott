@@ -420,8 +420,25 @@ final class AppModel: ObservableObject {
 
     func forget(_ ids: Set<String>) {
         for id in ids { profiles[id] = nil }
+        analysisQueue.removeAll { ids.contains($0) }
+        suggestQueue.removeAll { ids.contains($0) }
         scheduleSave()
     }
+
+    /// Erases the record of observed connections (profiles, their descriptions and suggestions, and the live log).
+    /// Rules, the decision history, EDR detections, vulnerabilities and threat-intel caches are kept; connections that
+    /// happen again are profiled from scratch.
+    func clearConnections() {
+        profiles.removeAll()
+        recent.removeAll()
+        analysisQueue.removeAll()
+        suggestQueue.removeAll()
+        heldForName.removeAll()
+        notifiedBad.removeAll()
+        scheduleSave()
+    }
+
+    func clearLiveLog() { recent.removeAll() }
 
     /// The filter often only sees an IP; record what a hostname currently resolves to.
     private func resolveAddresses(for rule: Rule) {

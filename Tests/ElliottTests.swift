@@ -834,4 +834,18 @@ final class ElliottTests: XCTestCase {
         p.nameChecked = true
         XCTAssertTrue(p.heuristic.flags.contains { $0.contains("raw public IP") })
     }
+
+    @MainActor
+    func testClearConnectionsKeepsRules() {
+        let model = AppModel()   // test host: isolated data folder, nothing started
+        model.ingest([event(), event(host: "cdn.foo.com", ip: "5.6.7.8")])
+        XCTAssertEqual(model.profiles.count, 2)
+        XCTAssertEqual(model.recent.count, 2)
+        model.classify(model.profiles.values.first!, .allow)
+        model.clearConnections()
+        XCTAssertTrue(model.profiles.isEmpty)
+        XCTAssertTrue(model.recent.isEmpty)
+        XCTAssertEqual(model.rules.count, 1, "rules survive")
+        XCTAssertEqual(model.decisions.count, 1, "learning history survives")
+    }
 }

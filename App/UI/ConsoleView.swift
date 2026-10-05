@@ -70,6 +70,7 @@ struct ConsoleView: View {
     @State private var sortOrder = [KeyPathComparator(\ConsoleRow.lastSeen, order: .reverse)]
     @State private var showInspector = true
     @State private var acceptThreshold: Int?
+    @State private var confirmClear = false
     @AppStorage("console.hide") private var hideRaw = ""
     @AppStorage("console.hideSigners") private var hideSignersRaw = ""
 
@@ -240,8 +241,21 @@ struct ConsoleView: View {
                     .pickerStyle(.menu)
             }
             ToolbarItem {
+                Button(role: .destructive) { confirmClear = true } label: { Label("Clear All Connections…", systemImage: "trash") }
+                    .disabled(model.profiles.isEmpty)
+                    .help("Erase every logged connection (rules are kept)")
+            }
+            ToolbarItem {
                 Button { showInspector.toggle() } label: { Label("Details", systemImage: "sidebar.right") }
             }
+        }
+        .confirmationDialog("Clear all \(model.profiles.count) logged connections?", isPresented: $confirmClear) {
+            Button("Clear Connections", role: .destructive) {
+                selection.removeAll()
+                model.clearConnections()
+            }
+        } message: {
+            Text("Removes every logged connection, its LLM description and suggestion, and the live log. Your allow/deny rules, decision history, detections and vulnerabilities are kept, and connections that happen again are profiled from scratch. This can't be undone.")
         }
         .inspector(isPresented: $showInspector) {
             Group {
