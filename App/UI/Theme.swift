@@ -71,6 +71,22 @@ struct Scanlines: View {
     }
 }
 
+/// A standard macOS confirmation alert. Used instead of SwiftUI's confirmationDialog where a view already has one:
+/// two dialogs on the same view hierarchy can silently stop one of them from appearing.
+@MainActor
+enum Confirm {
+    static func run(title: String, message: String, action: String, destructive: Bool = false) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = destructive ? .critical : .informational
+        let button = alert.addButton(withTitle: action)
+        button.hasDestructiveAction = destructive
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+}
+
 /// `root@host:~# command` prompt line.
 struct PromptLine: View {
     var command: String

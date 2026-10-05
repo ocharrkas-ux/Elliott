@@ -69,8 +69,6 @@ struct ConsoleView: View {
     @State private var selection: Set<String> = []
     @State private var sortOrder = [KeyPathComparator(\ConsoleRow.lastSeen, order: .reverse)]
     @State private var showInspector = true
-    @State private var acceptThreshold: Int?
-    @State private var confirmClear = false
     @AppStorage("console.hide") private var hideRaw = ""
     @AppStorage("console.hideSigners") private var hideSignersRaw = ""
 
@@ -97,6 +95,20 @@ struct ConsoleView: View {
         return counts.map { ($0.key, $0.value.0, $0.value.1) }.sorted { $0.count > $1.count }
     }
     private func signerKey(_ s: SignerInfo) -> String { s.ruleKey ?? (s.kind == .adhoc ? "~adhoc" : "~unsigned") }
+
+    private func clearAll() {
+        guard Confirm.run(title: "Clear all \(model.profiles.count) logged connections?",
+                          message: "Removes every logged connection, its LLM description and suggestion, and the live log. Your allow/deny rules, decision history, detections and vulnerabilities are kept, and connections that happen again are profiled from scratch. This can't be undone.",
+                          action: "Clear Connections", destructive: true) else { return }
+        selection.removeAll()
+        model.clearConnections()
+    }
+
+    private func acceptSuggestions(atLeast t: Int, count: Int) {
+        guard Confirm.run(title: "Accept \(count) suggestion\(count == 1 ? "" : "s") with confidence ≥ \(t)%?",
+                          message: "Each becomes an allow or deny rule, as if you had chosen it.", action: "Accept") else { return }
+        model.acceptSuggestions(model.profiles.values.filter { $0.suggestion.map { $0.confidence >= t } == true && model.decision(for: $0) == nil }.map(\.id))
+    }
 
     private var rows: [ConsoleRow] {
         let q = search.lowercased()
@@ -207,7 +219,7 @@ struct ConsoleView: View {
                     if model.canSuggest {
                         ForEach([90, 80, 70], id: \.self) { t in
                             let n = model.profiles.values.filter { $0.suggestion.map { $0.confidence >= t } == true && model.decision(for: $0) == nil }.count
-                            Button("Accept all with confidence ≥ \(t)% (\(n))") { acceptThreshold = t }.disabled(n == 0)
+                            Button("Accept all with confidence ≥ \(t)% (\(n))") { acceptSuggestions(atLeast: t, count: n) }.disabled(n == 0)
                         }
                         Divider()
                         Button("Show suggested") { filter = .suggested }
@@ -241,21 +253,13 @@ struct ConsoleView: View {
                     .pickerStyle(.menu)
             }
             ToolbarItem {
-                Button(role: .destructive) { confirmClear = true } label: { Label("Clear All Connections…", systemImage: "trash") }
+                Button("Clear All Connections") { clearAll() }
                     .disabled(model.profiles.isEmpty)
                     .help("Erase every logged connection (rules are kept)")
             }
             ToolbarItem {
                 Button { showInspector.toggle() } label: { Label("Details", systemImage: "sidebar.right") }
             }
-        }
-        .confirmationDialog("Clear all \(model.profiles.count) logged connections?", isPresented: $confirmClear) {
-            Button("Clear Connections", role: .destructive) {
-                selection.removeAll()
-                model.clearConnections()
-            }
-        } message: {
-            Text("Removes every logged connection, its LLM description and suggestion, and the live log. Your allow/deny rules, decision history, detections and vulnerabilities are kept, and connections that happen again are profiled from scratch. This can't be undone.")
         }
         .inspector(isPresented: $showInspector) {
             Group {
@@ -312,16 +316,6 @@ struct ConsoleView: View {
                 .background(Theme.red.opacity(0.85))
             }
             }
-        }
-        .confirmationDialog("Accept every suggestion with confidence ≥ \(acceptThreshold ?? 0)%?",
-                            isPresented: Binding(get: { acceptThreshold != nil }, set: { if !$0 { acceptThreshold = nil } })) {
-            Button("Accept") {
-                let t = acceptThreshold ?? 101
-                model.acceptSuggestions(model.profiles.values.filter { $0.suggestion.map { $0.confidence >= t } == true && model.decision(for: $0) == nil }.map(\.id))
-                acceptThreshold = nil
-            }
-        } message: {
-            Text("Each becomes an allow or deny rule, as if you had chosen it.")
         }
         .overlay {
             if model.profiles.isEmpty {

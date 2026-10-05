@@ -24,7 +24,7 @@ struct LogView: View {
         .searchable(text: $search, placement: .toolbar)
         .toolbar {
             ToolbarItem {
-                Button { model.clearLiveLog() } label: { Label("Clear Log", systemImage: "trash") }
+                Button("Clear Log") { model.clearLiveLog() }
                     .disabled(model.recent.isEmpty)
                     .help("Clear the live log (logged connections stay in the connections view)")
             }
