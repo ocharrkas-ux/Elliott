@@ -78,6 +78,10 @@ enum PFRules {
     func clear(reply: @escaping (String?) -> Void)
     /// JSON [ProcInfo] for every process, with arguments (root can read them all).
     func processes(reply: @escaping (Data) -> Void)
+    /// Turns DNS/TLS-SNI hostname capture on or off.
+    func setNameCapture(_ on: Bool, reply: @escaping (Bool) -> Void)
+    /// JSON NameBatch: observations newer than `cursor` (packet time, seconds since 1970).
+    func names(since cursor: Double, reply: @escaping (Data) -> Void)
     /// Kills a process the user chose to stop, only if `pid` still belongs to the process that started at
     /// `startedAt` (seconds since 1970). Replies nil on success.
     func terminate(pid: Int32, startedAt: Double, reply: @escaping (String?) -> Void)

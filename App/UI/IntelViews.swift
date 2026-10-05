@@ -151,6 +151,9 @@ struct IntelBox: View {
 
 struct IntelSettingsView: View {
     @EnvironmentObject var model: AppModel
+    @State private var newName = ""
+    @State private var newURL = ""
+    @State private var newSeverity: Reputation = .suspicious
     @State private var abuseKey = Keychain.get("abuseipdb-key") ?? ""
     @State private var vtKey = Keychain.get("virustotal-key") ?? ""
     @State private var gnKey = Keychain.get("greynoise-key") ?? ""
@@ -192,6 +195,48 @@ struct IntelSettingsView: View {
                 Text("Blocklists (matched on this Mac)")
             } footer: {
                 Text("Lists are downloaded and checked locally, so no destination IPs are shared. Private, LAN and Tailscale (100.64/10) addresses are never flagged.")
+                    .font(.caption).foregroundStyle(Theme.dim)
+            }
+
+            Section {
+                ForEach($model.settings.intel.customFeeds) { $feed in
+                    let st = model.threatIntel.status["custom-\(feed.id)"]
+                    HStack(alignment: .top) {
+                        Toggle(isOn: $feed.enabled) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text(feed.name)
+                                    Text(feed.severity == .knownBad ? "known bad" : "suspicious").font(.caption2)
+                                        .foregroundStyle(feed.severity == .knownBad ? Theme.red : Theme.amber)
+                                }
+                                Text(feed.url).font(.caption).foregroundStyle(Theme.dim).lineLimit(1).truncationMode(.middle)
+                                if let st {
+                                    Text("\(st.entries.formatted()) ranges\(st.error.map { " · ⚠︎ \($0)" } ?? "")")
+                                        .font(.caption2).foregroundStyle(st.error == nil && st.entries > 0 ? Theme.dim : Theme.amber)
+                                }
+                            }
+                        }
+                        Spacer()
+                        Button(role: .destructive) {
+                            model.settings.intel.customFeeds.removeAll { $0.id == feed.id }
+                        } label: { Image(systemName: "minus.circle") }.buttonStyle(.borderless)
+                    }
+                }
+                TextField("Name", text: $newName, prompt: Text("My team's blocklist"))
+                TextField("URL", text: $newURL, prompt: Text("https://example.com/blocklist.txt"))
+                Picker("Treat hits as", selection: $newSeverity) {
+                    Text("Suspicious").tag(Reputation.suspicious)
+                    Text("Known bad").tag(Reputation.knownBad)
+                }
+                Button("Add Feed") {
+                    model.settings.intel.customFeeds.append(CustomFeed(name: newName.trimmingCharacters(in: .whitespaces),
+                                                                       url: newURL.trimmingCharacters(in: .whitespaces), severity: newSeverity))
+                    newName = ""; newURL = ""
+                    Task { await model.refreshIntel(force: true) }
+                }
+                .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty || URL(string: newURL)?.scheme != "https")
+            } header: { Text("Custom feeds") } footer: {
+                Text("Any HTTPS URL serving plain-text IPs or CIDR ranges, one per line (comments with # or ;), such as a commercial feed's export or your SOC's blocklist. Downloaded and matched locally like the built-in lists.")
                     .font(.caption).foregroundStyle(Theme.dim)
             }
 

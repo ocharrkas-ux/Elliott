@@ -140,7 +140,8 @@ final class FilterService: NSObject, NSXPCListenerDelegate, FilterXPC {
                          direction: flow.direction == .inbound ? .inbound : .outbound, proto: proto,
                          localAddress: local?.address, localPort: local?.port,
                          remoteAddress: remote.address, remotePort: remote.port,
-                         remoteHostname: hostname, outcome: .allowed)
+                         remoteHostname: hostname, outcome: .allowed,
+                         hostnameSource: hostname == nil ? nil : "filter")
     }
 
     /// (address, port, hostname if the endpoint is a name)

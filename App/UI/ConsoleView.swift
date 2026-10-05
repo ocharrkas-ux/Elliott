@@ -468,7 +468,7 @@ struct ProfileDetail: View {
                         row("Identifier", p.signingID ?? "—")
                         row("Direction", p.key.direction.rawValue)
                         row("Protocol", p.key.proto.rawValue.uppercased())
-                        row("Hostname", p.hostname ?? "—")
+                        row("Hostname", hostnameText(p))
                         row("Remote IPs", p.addresses.joined(separator: "\n"))
                         row("Connections", "\(p.count)")
                         row("First seen", p.firstSeen.formatted())
@@ -487,6 +487,18 @@ struct ProfileDetail: View {
             Text(k).foregroundStyle(.secondary)
             Text(v).textSelection(.enabled).lineLimit(8)
         }
+    }
+
+    private func hostnameText(_ p: Profile) -> String {
+        guard let h = p.hostname else {
+            if p.key.direction == .inbound { return "—" }
+            return p.nameChecked == true ? "none: no DNS lookup or TLS server name preceded the connection"
+                                         : "not observable (enable hostname capture in Settings → Filter)"
+        }
+        var s = h
+        if let src = p.hostnameSource.flatMap(NameSource.init(rawValue:)) { s += "\nvia \(src.label)" }
+        if let alt = p.alternativeNames, !alt.isEmpty { s += "\nsame IP also served: \(alt.prefix(4).joined(separator: ", "))" }
+        return s
     }
 }
 

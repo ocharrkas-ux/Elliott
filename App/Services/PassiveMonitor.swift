@@ -7,6 +7,7 @@ final class PassiveMonitor: @unchecked Sendable {
     private var task: Task<Void, Never>?
     private var seen: Set<String> = []
     private var identities: [String: (String?, String?, Bool)] = [:]   // path → signing id, team, apple
+    private var firstPoll = true
 
     /// Seconds between polls; shortened during packet-filter lockdown so held handshakes are noticed quickly.
     var interval: Duration = .seconds(3)
@@ -51,10 +52,11 @@ final class PassiveMonitor: @unchecked Sendable {
                                  direction: c.inbound ? .inbound : .outbound, proto: c.proto,
                                  localAddress: c.localAddr, localPort: c.localPort,
                                  remoteAddress: c.remoteAddr, remotePort: c.remotePort,
-                                 remoteHostname: DNSCache.shared.name(for: c.remoteAddr),
-                                 outcome: c.synSent ? .pending : .observed))
+                                 remoteHostname: nil,
+                                 outcome: c.synSent ? .pending : .observed, preexisting: firstPoll ? true : nil))
         }
         seen = current
+        firstPoll = false
         return out
     }
 

@@ -1,7 +1,33 @@
+import ServiceManagement
 import SwiftUI
+
+/// Closing the window leaves Elliott running in the menu bar, so filtering, EDR and scheduled checks continue.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+}
+
+/// "Open at login" via SMAppService (the user can also manage it in System Settings → General → Login Items).
+@MainActor
+final class LoginItem: ObservableObject {
+    @Published private(set) var status = SMAppService.mainApp.status
+    @Published private(set) var error: String?
+    var enabled: Bool { status == .enabled }
+
+    func set(_ on: Bool) {
+        do {
+            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+        status = SMAppService.mainApp.status
+        if status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
+    }
+}
 
 @main
 struct ElliottApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var model = AppModel()
 
     var body: some Scene {

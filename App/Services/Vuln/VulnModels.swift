@@ -22,6 +22,8 @@ struct Component: Codable, Hashable, Identifiable {
     var exposedPorts: [Int] = []
     /// Packages this one depends on (normalized names), where the lockfile or virtualenv records it.
     var requires: [String]?
+    /// The CPE came from an NVD product-dictionary lookup rather than the built-in table.
+    var cpeAuto: Bool?
 
     var id: String { "\(kind.rawValue)|\(ecosystem ?? "")|\(name)|\(version)|\(location)" }
     var display: String { "\(name) \(version)" }

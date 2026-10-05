@@ -84,7 +84,7 @@ struct StatusPanel: View {
             Text("edr: \(model.openFindingCount) open\(model.openSeriousCount > 0 ? " (\(model.openSeriousCount) high+)" : "")")
                 .foregroundStyle(model.openSeriousCount > 0 ? Theme.red : Theme.dim)
                 .fontWeight(model.openSeriousCount > 0 ? .bold : .regular)
-            Text(model.vulnScanning ? "vulns: scanning…" : "vulns: \(model.openSeriousVulnCount) high+\(model.openVulns.contains(where: \.kev) ? " (exploited!)" : "")")
+            Text(model.vulnScanning ? "vulns: scanning…" : "vulns: \(model.openSeriousVulnCount) high+\(model.newVulnIDs.isEmpty ? "" : ", \(model.newVulnIDs.count) new")\(model.openVulns.contains(where: \.kev) ? " (exploited!)" : "")")
                 .foregroundStyle(model.openVulns.contains(where: \.kev) ? Theme.red : Theme.dim)
             if model.knownBadCount > 0 {
                 Text("[!] \(model.knownBadCount) known-bad destinations").foregroundStyle(Theme.red).fontWeight(.bold)

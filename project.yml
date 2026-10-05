@@ -43,9 +43,12 @@ targets:
   ElliottHelper:
     type: tool
     platform: macOS
-    sources: [Helper/main.swift, Shared]
+    sources: [Helper/main.swift, Helper/NameCapture.swift, Shared]
+    dependencies:
+      - sdk: libpcap.tbd
     settings:
       base:
+        SWIFT_OBJC_BRIDGING_HEADER: Helper/Helper-Bridging.h
         PRODUCT_BUNDLE_IDENTIFIER: com.omarcharrkas.elliott.helper
         PRODUCT_NAME: ElliottHelper
         GENERATE_INFOPLIST_FILE: YES

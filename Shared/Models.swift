@@ -33,6 +33,14 @@ struct FlowEvent: Codable, Identifiable, Hashable, Sendable {
     var outcome: Outcome
     /// Id of the rule that decided this flow, if any.
     var ruleID: UUID?
+    /// How `remoteHostname` was established (NameSource raw value), when it was.
+    var hostnameSource: String?
+    /// Already open when Elliott first looked: its start time is unknown, so DNS can't be tied to it.
+    var preexisting: Bool?
+    /// Hostname capture was running since before this connection started (so "no name found" is meaningful).
+    var nameChecked: Bool?
+    /// Other names that resolved to this IP in the same window (shared CDN addresses).
+    var alternativeNames: [String]?
 
     var processName: String { (processPath as NSString).lastPathComponent }
 

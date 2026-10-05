@@ -86,6 +86,42 @@ vendors), so Elliott polls instead. Very short-lived processes can slip between 
   * mark a detection benign, which suppresses that exact behavior from then on.
 * With the pf helper installed, Elliott sees the full command lines of root and other users' processes.
 
+## Staying current
+* **Threat intel**: blocklists refresh every 3 hours. Each refresh re-checks every IP Elliott has seen, so a newly
+  listed IP gets flagged on old connections too (with a notification). You can add your own HTTPS blocklist feeds
+  (Settings → Threat Intel).
+* **Exploit status**: every 3 hours Elliott re-checks the CISA KEV list (and daily EPSS scores) against existing
+  findings without a full scan. It always notifies when something on this Mac becomes actively exploited.
+* **Vulnerabilities**: a full rescan runs daily. Findings first seen in the latest scan are tagged NEW. Elliott
+  notifies about new ones at or above a chosen severity (critical by default).
+* **Coverage**: apps and Homebrew formulae missing from the built-in CPE table are looked up in NVD's product
+  dictionary. The lookup is strict and cached 30 days:
+  * the product name must match exactly;
+  * when several vendors use that name, the vendor must match the app's code-signing developer;
+  * products listed only for mobile or Windows are skipped, and desktop editions are preferred.
+  Matches show as "(auto)" in the inventory.
+* **Scheduling**: uses NSBackgroundActivityScheduler plus a catch-up after wake. Closing the window keeps Elliott
+  running in the menu bar, and "Open Elliott at login" (Settings → Filter) keeps it going across restarts.
+  Network-facing work stays in the unprivileged app; the root helper does not fetch feeds.
+
+## Hostnames
+`nettop` only reports IPs. With the helper installed, Elliott reads hostnames from:
+* DNS answers (name, IP, TTL, time);
+* the server name (SNI) in TLS ClientHellos, reassembled across segments and stamped with the connection's SYN time.
+
+It keeps only names, addresses, ports and times, in memory. A name is tied to a connection only by:
+1. SNI from that exact connection (local port, remote IP and remote port); or
+2. a DNS answer for the IP that arrived *before* the connection was first seen and was still valid (TTL clamped to
+   1 min…1 h, plus grace).
+
+Rules for the edge cases:
+* Connections already open when Elliott or the capture started get SNI only.
+* Several names on one IP within the window are marked ambiguous, with the alternatives listed.
+* "Raw public IP" is flagged only when capture was running from before the connection and saw neither a DNS answer
+  nor SNI.
+
+QUIC, encrypted DNS in browsers and iCloud Private Relay hide names.
+
 ## Vulnerabilities
 * **Inventory**: macOS, apps in /Applications, Homebrew formulae, this Mac's listening services, and lockfiles in the
   project folders you choose:

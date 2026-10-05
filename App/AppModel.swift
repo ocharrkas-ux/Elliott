@@ -14,6 +14,8 @@ struct AppSettings: Codable, Equatable {
     var edr = EDRSettings()
     var vuln = VulnSettings()
     var remediation = RemediationSettings()
+    /// Read hostnames from DNS answers and TLS server names (needs the helper; root for packet capture).
+    var captureNames = true
 
     init() {}
 
@@ -31,6 +33,7 @@ struct AppSettings: Codable, Equatable {
         edr = try c.decodeIfPresent(EDRSettings.self, forKey: .edr) ?? d.edr
         vuln = try c.decodeIfPresent(VulnSettings.self, forKey: .vuln) ?? d.vuln
         remediation = try c.decodeIfPresent(RemediationSettings.self, forKey: .remediation) ?? d.remediation
+        captureNames = try c.decodeIfPresent(Bool.self, forKey: .captureNames) ?? d.captureNames
     }
 }
 
@@ -98,6 +101,18 @@ final class AppModel: ObservableObject {
     let edr = EDRMonitor()
     private var triageQueue: [UUID] = []
     private var reachQueue: [String] = []
+    private let jobs = BackgroundJobs()
+    let names = NameResolver()
+    @Published private(set) var nameCapture: (active: Bool, interfaces: [String]) = (false, [])
+    private var helperCaptureOn = false
+    /// New TLS connections wait briefly for their ClientHello's server name before being filed.
+    private var heldForName: [(event: FlowEvent, deadline: Date)] = []
+    private var nameTask: Task<Void, Never>?
+    static let intelInterval: TimeInterval = 3 * 3600
+    static let exploitInterval: TimeInterval = 3 * 3600
+    /// Findings first seen in the most recent scan (not on the first scan ever).
+    @Published private(set) var newVulnIDs: Set<String> = []
+    @Published private(set) var exploitChecking = false
     private(set) lazy var vulnDB = VulnDB(directory: dir)
     private var edrBaseline: [String] = []
     private var analysisTask: Task<Void, Never>?
@@ -117,7 +132,16 @@ final class AppModel: ObservableObject {
         return (value as? [String])?.isEmpty == false
     }()
 
+    /// Unit tests run inside the app (it's their host). They must not read or write the user's data, start
+    /// monitors, talk to the helper or run scheduled jobs.
+    static let isTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
     init() {
+        if Self.isTestHost {
+            dir = FileManager.default.temporaryDirectory.appendingPathComponent("ElliottTestHost-\(UUID().uuidString)", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            return
+        }
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         dir = support.appendingPathComponent("Elliott", isDirectory: true)
         // Data saved while the app was called Bastion moves over once.
@@ -148,14 +172,20 @@ final class AppModel: ObservableObject {
             self.rulesChanged(syncFirewall: false)
         }.store(in: &bag)
 
-        Timer.publish(every: 6 * 3600, on: .main, in: .common).autoconnect().sink { [weak self] _ in
-            Task { await self?.refreshIntel() }
-        }.store(in: &bag)
-        Task { await refreshIntel() }
         startEDR()
-        Timer.publish(every: 3600, on: .main, in: .common).autoconnect().sink { [weak self] _ in self?.autoScanIfDue() }
-            .store(in: &bag)
-        Task { try? await Task.sleep(for: .seconds(20)); autoScanIfDue() }
+        // Scheduled checks. NSBackgroundActivityScheduler runs them at good moments (power, idle) and catches up after
+        // sleep; a wake observer adds a prompt catch-up once the network is back.
+        jobs.every("intel", interval: Self.intelInterval) { [weak self] in await self?.refreshIntel(maxAge: Self.intelInterval) }
+        jobs.every("exploits", interval: Self.exploitInterval) { [weak self] in await self?.refreshExploitSignals() }
+        jobs.every("scan", interval: 3600) { [weak self] in self?.autoScanIfDue() }
+        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification).sink { [weak self] _ in
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(30))
+                await self?.runDueChecks()
+            }
+        }.store(in: &bag)
+        Task { try? await Task.sleep(for: .seconds(20)); await runDueChecks() }
+        startNameCapture()
 
         if hasFilterExtension { Task { await filter.refresh() } }
         helper.start()
@@ -170,6 +200,72 @@ final class AppModel: ObservableObject {
     // MARK: Connections
 
     func ingest(_ events: [FlowEvent]) {
+        var ready: [FlowEvent] = []
+        for var e in events {
+            guard e.remoteHostname == nil, e.direction == .outbound, IPv4Set.isGlobal(e.remoteAddress) else { ready.append(e); continue }
+            if annotate(&e) { ready.append(e); continue }
+            // No name yet: a brand-new TLS connection's server name is usually a moment away.
+            if nameCapture.active, e.outcome == .observed, e.proto == .tcp, e.preexisting != true,
+               SNIAssembler.tlsPorts.contains(e.remotePort) {
+                heldForName.append((e, Date().addingTimeInterval(4)))
+            } else {
+                ready.append(e)
+            }
+        }
+        if !ready.isEmpty { commit(ready) }
+    }
+
+    /// Attaches a hostname only when the evidence belongs to this connection (see NameResolver). True if named.
+    private func annotate(_ e: inout FlowEvent) -> Bool {
+        e.nameChecked = names.coveredByCapture(observed: e.date, preexisting: e.preexisting == true) ? true : nil
+        guard let m = names.resolve(remoteIP: e.remoteAddress, remotePort: e.remotePort, localPort: e.localPort,
+                                    observed: e.date, preexisting: e.preexisting == true) else { return false }
+        e.remoteHostname = m.name
+        e.hostnameSource = m.source.rawValue
+        e.alternativeNames = m.alternatives.isEmpty ? nil : m.alternatives
+        return true
+    }
+
+    private func releaseHeld(force: Bool = false) {
+        guard !heldForName.isEmpty else { return }
+        let now = Date()
+        var ready: [FlowEvent] = []
+        heldForName.removeAll { item in
+            var e = item.event
+            if annotate(&e) || force || item.deadline <= now { ready.append(e); return true }
+            return false
+        }
+        if !ready.isEmpty { commit(ready) }
+    }
+
+    private func startNameCapture() {
+        nameTask?.cancel()
+        nameTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.pollNames()
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
+
+    private func pollNames() async {
+        let want = settings.captureNames && helper.connected
+        if want != helperCaptureOn || (want && !nameCapture.active) {
+            helperCaptureOn = await helper.setNameCapture(want) && want
+        }
+        guard want, let batch = await helper.names(since: names.cursor) else {
+            if nameCapture.active { nameCapture = (false, []) }
+            releaseHeld(force: true)
+            return
+        }
+        names.ingest(batch)
+        if nameCapture.active != batch.capturing || nameCapture.interfaces != batch.interfaces {
+            nameCapture = (batch.capturing, batch.interfaces)
+        }
+        releaseHeld()
+    }
+
+    private func commit(_ events: [FlowEvent]) {
         let pfLockdown = backend == .packetFilter && settings.lockdown
         var events = events
         for i in events.indices where events[i].outcome == .pending && !pfLockdown && backend != .filter {
@@ -549,14 +645,33 @@ final class AppModel: ObservableObject {
 
     // MARK: Threat intelligence
 
-    var enabledFeeds: [Feed] { Feed.all.filter { !settings.intel.disabledFeeds.contains($0.id) } }
+    var enabledFeeds: [Feed] {
+        Feed.all.filter { !settings.intel.disabledFeeds.contains($0.id) }
+            + settings.intel.customFeeds.filter(\.enabled).compactMap(\.feed)
+    }
+    /// Names of every list (built-in and custom), to tell list hits from online-lookup hits.
+    private var feedNames: Set<String> { Set(Feed.all.map(\.name) + settings.intel.customFeeds.map(\.name)) }
+
+    /// Anything overdue (after launch or wake): intel, exploit signals, the daily scan.
+    func runDueChecks() async {
+        let now = Date()
+        if settings.intel.lastRefresh.map({ now.timeIntervalSince($0) > Self.intelInterval }) ?? true {
+            await refreshIntel(maxAge: Self.intelInterval)
+        }
+        if settings.vuln.lastExploitCheck.map({ now.timeIntervalSince($0) > Self.exploitInterval }) ?? true {
+            await refreshExploitSignals()
+        }
+        autoScanIfDue()
+    }
     var knownBadCount: Int { profiles.values.filter { $0.intel?.reputation == .knownBad }.count }
 
-    func refreshIntel(force: Bool = false) async {
+    func refreshIntel(force: Bool = false, maxAge: TimeInterval = 12 * 3600) async {
         guard !intelRefreshing else { return }
         intelRefreshing = true
         for f in Feed.all where settings.intel.disabledFeeds.contains(f.id) { threatIntel.drop(f.id) }
-        await threatIntel.refresh(enabledFeeds, force: force)
+        for c in settings.intel.customFeeds where !c.enabled { threatIntel.drop("custom-\(c.id)") }
+        await threatIntel.refresh(enabledFeeds, maxAge: maxAge, force: force)
+        settings.intel.lastRefresh = Date()
         intelRefreshing = false
         intelRevision += 1
         // Lists changed: re-check every IP we know about.
@@ -569,7 +684,8 @@ final class AppModel: ObservableObject {
         var touched: Set<String> = []
         for ip in ips where IPv4Set.isGlobal(ip) {
             var entry = intel[ip] ?? IPIntel(ip: ip)
-            let online = entry.hits.filter { h in !Feed.all.contains { $0.name == h.source } }
+            let names = feedNames
+            let online = entry.hits.filter { !names.contains($0.source) }
             entry.hits = threatIntel.hits(for: ip, feeds: feeds) + online
             entry.checked = Date()
             if entry != intel[ip] { intel[ip] = entry; touched.insert(ip) }
@@ -862,15 +978,78 @@ final class AppModel: ObservableObject {
             gone.status = .fixed   // no longer installed at that version
             merged.append(gone)
         }
+        // What's new since the last scan (the first scan has nothing to compare against).
+        let fresh = old.isEmpty ? [] : merged.filter { old[$0.id] == nil && $0.status == .open }
+        newVulnIDs = Set(fresh.map(\.id))
+        let nowExploited = merged.filter { f in f.kev && f.status == .open && old[f.id].map { !$0.kev } == true }
         vulnFindings = merged
         components = r.components
         vulnErrors = r.errors
+        notifyVulns(new: fresh, exploited: nowExploited)
         reachQueue = merged.filter { $0.status == .open && $0.severity >= .medium && $0.reachability.llmVerdict == nil
             && [.imported, .reachable].contains($0.reachability.verdict) }
             .sorted { $0.priority > $1.priority }.map(\.id)
         refreshProfileVulns()
         scheduleSave()
         pumpAnalysis()
+    }
+
+    /// Every few hours: re-check CISA KEV (and daily EPSS) for the findings already known, without a full scan.
+    func refreshExploitSignals() async {
+        guard settings.vuln.enabled, !exploitChecking, !vulnFindings.isEmpty else { return }
+        exploitChecking = true
+        defer { exploitChecking = false }
+        let kev = await vulnDB.kev(maxAge: Self.exploitInterval)
+        guard !kev.isEmpty else { return }
+        var flipped: [VulnFinding] = []
+        for i in vulnFindings.indices {
+            guard let cve = vulnFindings[i].vuln.cve else { continue }
+            let isKEV = kev.contains(cve)
+            if isKEV && !vulnFindings[i].kev && vulnFindings[i].status == .open { flipped.append(vulnFindings[i]) }
+            vulnFindings[i].kev = isKEV
+        }
+        if settings.vuln.lastEPSS.map({ Date().timeIntervalSince($0) > 20 * 3600 }) ?? true {
+            let cves = Array(Set(vulnFindings.filter { $0.status == .open }.compactMap(\.vuln.cve)))
+            let epss = await vulnDB.epss(cves)
+            if !epss.isEmpty {
+                for i in vulnFindings.indices { if let c = vulnFindings[i].vuln.cve, let e = epss[c] { vulnFindings[i].epss = e } }
+                settings.vuln.lastEPSS = Date()
+            }
+        }
+        settings.vuln.lastExploitCheck = Date()
+        notifyVulns(new: [], exploited: flipped)
+        refreshProfileVulns()
+        scheduleSave()
+    }
+
+    private func notifyVulns(new: [VulnFinding], exploited: [VulnFinding]) {
+        guard settings.vuln.notify else { return }
+        func list(_ fs: [VulnFinding]) -> String {
+            let parts = fs.sorted { $0.priority > $1.priority }.prefix(4).map { "\($0.component.name) (\($0.vuln.cve ?? $0.vuln.id))" }
+            return parts.joined(separator: ", ") + (fs.count > 4 ? " and \(fs.count - 4) more" : "")
+        }
+        if !exploited.isEmpty {
+            notify(id: "kev-\(Date().timeIntervalSince1970)",
+                   title: "Now exploited in the wild: \(exploited.count) vulnerabilit\(exploited.count == 1 ? "y" : "ies") on this Mac",
+                   body: "CISA added \(list(exploited)) to its Known Exploited list. Patch these first.", critical: true)
+        }
+        let serious = new.filter { $0.severity >= settings.vuln.notifyAt && !exploited.contains($0) }
+        if !serious.isEmpty {
+            notify(id: "new-\(Date().timeIntervalSince1970)",
+                   title: "\(serious.count) new \(settings.vuln.notifyAt.label.lowercased())+ vulnerabilit\(serious.count == 1 ? "y" : "ies")",
+                   body: list(serious), critical: false)
+        }
+    }
+
+    private func notify(id: String, title: String, body: String, critical: Bool) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = critical ? .defaultCritical : .default
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            if granted { center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) }
+        }
     }
 
     // MARK: Remediation
@@ -1066,6 +1245,7 @@ final class AppModel: ObservableObject {
         var vulnFindings: [VulnFinding]?
         var components: [Component]?
         var remediations: [RemediationRecord]?
+        var newVulnIDs: [String]?
     }
 
     private var stateURL: URL { dir.appendingPathComponent("state.json") }
@@ -1082,12 +1262,14 @@ final class AppModel: ObservableObject {
         vulnFindings = s.vulnFindings ?? []
         components = s.components ?? []
         remediations = s.remediations ?? []
+        newVulnIDs = Set(s.newVulnIDs ?? [])
         // Intel older than a week is re-checked from scratch.
         intel = Dictionary((s.intel ?? []).filter { Date().timeIntervalSince($0.checked) < 7 * 86400 }.map { ($0.ip, $0) },
                            uniquingKeysWith: { a, _ in a })
     }
 
     private func scheduleSave() {
+        guard !Self.isTestHost else { return }
         saveTask?.cancel()
         saveTask = Task {
             try? await Task.sleep(for: .seconds(2))
@@ -1095,7 +1277,8 @@ final class AppModel: ObservableObject {
             let saved = Saved(profiles: Array(profiles.values), rules: rules, settings: settings,
                               decisions: decisions, intel: Array(intel.values),
                               findings: findings, edrBaseline: edrBaseline,
-                              vulnFindings: vulnFindings, components: components, remediations: remediations)
+                              vulnFindings: vulnFindings, components: components, remediations: remediations,
+                              newVulnIDs: Array(newVulnIDs))
             if let data = try? JSONEncoder.elliott.encode(saved) { try? data.write(to: stateURL, options: .atomic) }
         }
     }

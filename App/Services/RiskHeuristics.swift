@@ -64,8 +64,12 @@ enum RiskHeuristics {
             add(15, "Accepts inbound connections on port \(port)")
             if p.addresses.contains(where: { !isPrivate($0) }) { add(15, "Inbound peers from the public internet") }
         } else {
+            // Only meaningful when Elliott could see DNS/TLS names for this connection; otherwise "no hostname" just
+            // means "not observable", not that the app connected to a bare IP.
             let destIsIP = p.hostname == nil && isIPLiteral(p.key.host)
-            if destIsIP && !isPrivate(p.key.host) { add(10, "Connects to a raw public IP with no hostname") }
+            if destIsIP && !isPrivate(p.key.host) && p.nameChecked == true {
+                add(10, "Connects to a raw public IP: no DNS lookup or TLS server name preceded it")
+            }
             if isPrivate(p.key.host) { add(-10, "Destination is on the local network") }
         }
         // A destination on a known-bad list is critical no matter how reputable the app is.

@@ -40,12 +40,42 @@ struct IntelSummary: Codable, Hashable {
     var org: String?
 }
 
+/// A blocklist the user added: one IP or CIDR per line (comments with # or ;), like the built-in feeds.
+struct CustomFeed: Codable, Equatable, Identifiable, Hashable {
+    var id = UUID().uuidString
+    var name: String
+    var url: String
+    var severity: Reputation = .suspicious
+    var enabled = true
+
+    var feed: Feed? {
+        guard let u = URL(string: url), u.scheme == "https" else { return nil }
+        return Feed(id: "custom-\(id)", name: name, url: u, detail: "listed on \(name)", severity: severity, about: url)
+    }
+}
+
 struct IntelSettings: Codable, Equatable {
     var disabledFeeds: [String] = []
     var abuseIPDB = false
     var greyNoise = false
     var virusTotal = false
     var notifyKnownBad = true
+    var customFeeds: [CustomFeed] = []
+    var lastRefresh: Date?
+
+    init() {}
+
+    // Older saves lack newer keys: default them instead of failing the whole load.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        disabledFeeds = try c.decodeIfPresent([String].self, forKey: .disabledFeeds) ?? []
+        abuseIPDB = try c.decodeIfPresent(Bool.self, forKey: .abuseIPDB) ?? false
+        greyNoise = try c.decodeIfPresent(Bool.self, forKey: .greyNoise) ?? false
+        virusTotal = try c.decodeIfPresent(Bool.self, forKey: .virusTotal) ?? false
+        notifyKnownBad = try c.decodeIfPresent(Bool.self, forKey: .notifyKnownBad) ?? true
+        customFeeds = try c.decodeIfPresent([CustomFeed].self, forKey: .customFeeds) ?? []
+        lastRefresh = try c.decodeIfPresent(Date.self, forKey: .lastRefresh)
+    }
 }
 
 struct Feed: Identifiable, Hashable {

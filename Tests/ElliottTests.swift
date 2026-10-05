@@ -646,4 +646,192 @@ final class ElliottTests: XCTestCase {
         let lan = ConsoleRow(profile: Profile(event: event(host: nil, ip: "192.168.1.20")), rule: nil)
         XCTAssertTrue(HideOption.localNetwork.hides(lan))
     }
+
+    // MARK: Staying current
+
+    func testStrictCPEMatching() {
+        let names = ["cpe:2.3:a:mozilla:firefox:100.0:*:*:*:*:*:*:*", "cpe:2.3:a:mozilla:firefox_esr:91.0:*:*:*:*:*:*:*",
+                     "cpe:2.3:a:google:chrome:120.0:*:*:*:*:*:*:*", "cpe:2.3:a:microsoft:visual_studio_code:1.80:*:*:*:*:*:*:*",
+                     "cpe:2.3:a:acme:notes:1.0:*:*:*:*:*:*:*", "cpe:2.3:a:otherco:notes:2.0:*:*:*:*:*:*:*",
+                     "cpe:2.3:a:gnome:glib:2.0:*:*:*:*:*:*:*"]
+        XCTAssertEqual(VulnDB.bestCPE(for: "Firefox", vendorHint: "Mozilla Corporation", cpeNames: names), "a:mozilla:firefox")
+        XCTAssertEqual(VulnDB.bestCPE(for: "Google Chrome", vendorHint: "Google LLC", cpeNames: names), "a:google:chrome")
+        XCTAssertEqual(VulnDB.bestCPE(for: "Visual Studio Code", vendorHint: "Microsoft Corporation", cpeNames: names), "a:microsoft:visual_studio_code")
+        XCTAssertNil(VulnDB.bestCPE(for: "Notes", vendorHint: nil, cpeNames: names), "two vendors ship 'notes': ambiguous")
+        XCTAssertEqual(VulnDB.bestCPE(for: "Notes", vendorHint: "Acme Inc.", cpeNames: names), "a:acme:notes")
+        XCTAssertNil(VulnDB.bestCPE(for: "Firefox", vendorHint: "Evil Corp", cpeNames: names), "vendor must match the signature")
+        XCTAssertEqual(VulnDB.bestCPE(for: "glib", vendorHint: nil, cpeNames: names), "a:gnome:glib", "single vendor, no hint needed")
+        XCTAssertNil(VulnDB.bestCPE(for: "Go", vendorHint: nil, cpeNames: names), "too short to trust")
+    }
+
+    func testSettingsFromOlderVersionsStillLoad() throws {
+        let intel = try JSONDecoder.elliott.decode(IntelSettings.self, from: Data(#"{"disabledFeeds":["tor-exit"],"abuseIPDB":true,"greyNoise":false,"virusTotal":false,"notifyKnownBad":true}"#.utf8))
+        XCTAssertEqual(intel.disabledFeeds, ["tor-exit"])
+        XCTAssertTrue(intel.customFeeds.isEmpty)
+        let vuln = try JSONDecoder.elliott.decode(VulnSettings.self, from: Data(#"{"enabled":true,"projectFolders":["/x"],"includeApps":true,"includeHomebrew":true,"includeServices":true,"autoScanDaily":true}"#.utf8))
+        XCTAssertEqual(vuln.projectFolders, ["/x"])
+        XCTAssertEqual(vuln.notifyAt, .critical)
+        XCTAssertTrue(vuln.autoMapCPE)
+    }
+
+    func testCustomFeeds() {
+        XCTAssertNil(CustomFeed(name: "x", url: "http://insecure.example/list.txt").feed, "HTTPS only")
+        let f = CustomFeed(name: "SOC", url: "https://example.com/bad.txt", severity: .knownBad).feed
+        XCTAssertEqual(f?.severity, .knownBad)
+        XCTAssertEqual(f?.detail, "listed on SOC")
+        let set = IPv4Set(lines: "# our list\n203.0.113.0/24 ; lab\n198.51.100.7\n".split(separator: "\n"))
+        XCTAssertTrue(set.contains("203.0.113.50"))
+        XCTAssertTrue(set.contains("198.51.100.7"))
+    }
+
+    /// Live: NVD product lookups for real apps (TEST_RUNNER_ELLIOTT_LIVE_CPE=1).
+    func testLiveCPELookup() async throws {
+        guard ProcessInfo.processInfo.environment["ELLIOTT_LIVE_CPE"] != nil else { throw XCTSkip("live test not requested") }
+        let db = VulnDB(directory: FileManager.default.temporaryDirectory.appendingPathComponent("cpe-live-\(UUID().uuidString)"))
+        for app in ["Firefox", "Signal", "Termius", "WhatsApp", "Google Drive", "Obsidian", "iLok License Manager", "Claude"] {
+            let path = "/Applications/\(app).app"
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            let hint = VulnScanner.vendorHint(appPath: path)
+            let cpe = await db.cpeLookup(name: app, vendorHint: hint)
+            print("LIVE CPE: \(app) [signer: \(hint ?? "none")] → \(cpe ?? "no confident match")")
+        }
+    }
+
+    func testCPEPrefersDesktopAndSkipsMobileOnly() {
+        let names = ["cpe:2.3:a:signal:signal:6.0:*:*:*:*:android:*:*", "cpe:2.3:a:signal:signal:6.0:*:*:*:*:iphone_os:*:*",
+                     "cpe:2.3:a:signal:signal-desktop:6.0:*:*:*:*:*:*:*"]
+        XCTAssertEqual(VulnDB.bestCPE(for: "Signal", vendorHint: "Signal Messenger, LLC", cpeNames: names), "a:signal:signal-desktop")
+        let mobileOnly = ["cpe:2.3:a:acme:widget:1.0:*:*:*:*:android:*:*"]
+        XCTAssertNil(VulnDB.bestCPE(for: "Widget", vendorHint: "Acme", cpeNames: mobileOnly))
+    }
+
+    // MARK: Hostname capture
+
+    private func fixture(_ name: String) throws -> [UInt8] {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/\(name)")
+        let hex = try String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        var out: [UInt8] = []
+        var i = hex.startIndex
+        while i < hex.endIndex { let j = hex.index(i, offsetBy: 2); out.append(UInt8(hex[i..<j], radix: 16)!); i = j }
+        return out
+    }
+
+    /// Ethernet + IPv4 + TCP frame from 192.168.1.5:port → dst:443.
+    private func tcpFrame(seq: UInt32, syn: Bool, payload: [UInt8], srcPort: Int = 51000, dst: [UInt8] = [140, 82, 112, 6]) -> [UInt8] {
+        var f: [UInt8] = Array(repeating: 0, count: 12) + [0x08, 0x00]
+        let total = 20 + 20 + payload.count
+        f += [0x45, 0, UInt8(total >> 8), UInt8(total & 0xFF), 0, 0, 0x40, 0, 64, 6, 0, 0, 192, 168, 1, 5] + dst
+        f += [UInt8(srcPort >> 8), UInt8(srcPort & 0xFF), 0x01, 0xBB]
+        f += [UInt8(seq >> 24), UInt8(seq >> 16 & 0xFF), UInt8(seq >> 8 & 0xFF), UInt8(seq & 0xFF), 0, 0, 0, 0]
+        f += [0x50, syn ? 0x02 : 0x18, 0xFF, 0xFF, 0, 0, 0, 0]
+        return f + payload
+    }
+
+    /// Same ClientHello with the server_name extension moved to the end (lengths unchanged, still valid TLS).
+    private func sniLast(_ h: [UInt8]) -> [UInt8] {
+        var i = 9 + 2 + 32
+        i += 1 + Int(h[i])
+        i += 2 + (Int(h[i]) << 8 | Int(h[i + 1]))
+        i += 1 + Int(h[i])
+        let extStart = i + 2
+        var exts: [(type: Int, bytes: [UInt8])] = []
+        var j = extStart
+        while j + 4 <= h.count {
+            let type = Int(h[j]) << 8 | Int(h[j + 1]), len = Int(h[j + 2]) << 8 | Int(h[j + 3])
+            exts.append((type, Array(h[j..<(j + 4 + len)])))
+            j += 4 + len
+        }
+        let reordered = exts.filter { $0.type != 0 } + exts.filter { $0.type == 0 }
+        return Array(h[..<extStart]) + reordered.flatMap(\.bytes)
+    }
+
+    func testSNIFromRealClientHelloAcrossSegments() throws {
+        let original = try fixture("clienthello-api.github.com.hex")
+        XCTAssertGreaterThan(original.count, 1460, "post-quantum ClientHello spans two segments")
+        XCTAssertEqual(PacketParse.sni(original), .name("api.github.com"))
+        // Browsers randomize extension order, so the server name can sit in the second segment. Recreate that.
+        let hello = sniLast(original)
+        XCTAssertEqual(hello.count, original.count)
+        XCTAssertEqual(PacketParse.sni(hello), .name("api.github.com"))
+        XCTAssertEqual(PacketParse.sni(Array(hello.prefix(1448))), .needMore)
+        XCTAssertEqual(PacketParse.sni([0x47, 0x45, 0x54, 0x20]), .notTLS, "plain HTTP")
+
+        var asm = SNIAssembler()
+        let syn = try XCTUnwrap(PacketParse.parse(frame: tcpFrame(seq: 1000, syn: true, payload: [])[...], linkType: PacketParse.DLT_EN10MB))
+        XCTAssertNil(asm.feed(syn, time: 100))
+        let seg1 = Array(hello.prefix(1448)), seg2 = Array(hello.dropFirst(1448))
+        let p1 = try XCTUnwrap(PacketParse.parse(frame: tcpFrame(seq: 1001, syn: false, payload: seg1)[...], linkType: PacketParse.DLT_EN10MB))
+        let p2 = try XCTUnwrap(PacketParse.parse(frame: tcpFrame(seq: 1001 + 1448, syn: false, payload: seg2)[...], linkType: PacketParse.DLT_EN10MB))
+        XCTAssertNil(asm.feed(p1, time: 100.05))
+        let obs = try XCTUnwrap(asm.feed(p2, time: 100.06))
+        XCTAssertEqual(obs.name, "api.github.com")
+        XCTAssertEqual(obs.remoteIP, "140.82.112.6")
+        XCTAssertEqual(obs.localPort, 51000)
+        XCTAssertEqual(obs.time, 100, "stamped with the connection's start (its SYN)")
+
+        // Data for a flow whose SYN wasn't seen (opened before capture) is ignored.
+        var cold = SNIAssembler()
+        let p = try XCTUnwrap(PacketParse.parse(frame: tcpFrame(seq: 5, syn: false, payload: hello)[...], linkType: PacketParse.DLT_EN10MB))
+        XCTAssertNil(cold.feed(p, time: 1))
+    }
+
+    func testDNSAnswerFromUDPFrame() throws {
+        var dns: [UInt8] = [0x12, 0x34, 0x81, 0x80, 0, 1, 0, 1, 0, 0, 0, 0]
+        dns += [3] + Array("api".utf8) + [6] + Array("github".utf8) + [3] + Array("com".utf8) + [0, 0, 1, 0, 1]
+        dns += [0xC0, 0x0C, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4, 140, 82, 112, 6]
+        var f: [UInt8] = Array(repeating: 0, count: 12) + [0x08, 0x00]
+        let total = 20 + 8 + dns.count
+        f += [0x45, 0, UInt8(total >> 8), UInt8(total & 0xFF), 0, 0, 0, 0, 64, 17, 0, 0, 1, 1, 1, 1, 192, 168, 1, 5]
+        f += [0, 53, 0xC3, 0x50, UInt8((8 + dns.count) >> 8), UInt8((8 + dns.count) & 0xFF), 0, 0] + dns
+        let p = try XCTUnwrap(PacketParse.parse(frame: f[...], linkType: PacketParse.DLT_EN10MB))
+        let answers = PacketParse.dnsAnswers(p, time: 50)
+        XCTAssertEqual(answers, [DNSObservation(ip: "140.82.112.6", name: "api.github.com", ttl: 60, time: 50)])
+        XCTAssertNil(PacketParse.parse(frame: [1, 2, 3][...], linkType: PacketParse.DLT_EN10MB), "truncated frames don't crash")
+    }
+
+    func testNameBindingRespectsTiming() {
+        let r = NameResolver()
+        let t0 = 1_000_000.0                                     // capture started
+        func at(_ s: Double) -> Date { Date(timeIntervalSince1970: t0 + s) }
+        r.ingest(NameBatch(dns: [DNSObservation(ip: "1.2.3.4", name: "api.example.com", ttl: 300, time: t0 + 100),
+                                 DNSObservation(ip: "5.6.7.8", name: "old.example.com", ttl: 60, time: t0 + 20)],
+                           sni: [SNIObservation(localIP: "192.168.1.5", localPort: 50000, remoteIP: "9.9.9.9", remotePort: 443,
+                                                name: "secure.example.com", time: t0 + 200)],
+                           capturing: true, since: t0))
+
+        // DNS answer 20 s before the connection, inside its TTL: bound.
+        XCTAssertEqual(r.resolve(remoteIP: "1.2.3.4", remotePort: 443, localPort: 1, observed: at(120), preexisting: false)?.source, .dns)
+        // Connection seen *before* the answer arrived: not bound.
+        XCTAssertNil(r.resolve(remoteIP: "1.2.3.4", remotePort: 443, localPort: 1, observed: at(90), preexisting: false))
+        // An hour later the answer (TTL 300 s) no longer vouches for new connections.
+        XCTAssertNil(r.resolve(remoteIP: "1.2.3.4", remotePort: 443, localPort: 1, observed: at(100 + 3600), preexisting: false))
+        // Short TTL is stretched to 1 min, not more: 5.6.7.8 answered at +20 → fine at +70, stale at +200.
+        XCTAssertNotNil(r.resolve(remoteIP: "5.6.7.8", remotePort: 443, localPort: 1, observed: at(70), preexisting: false))
+        XCTAssertNil(r.resolve(remoteIP: "5.6.7.8", remotePort: 443, localPort: 1, observed: at(200), preexisting: false))
+        // Already open when Elliott looked: DNS can't be tied to it.
+        XCTAssertNil(r.resolve(remoteIP: "1.2.3.4", remotePort: 443, localPort: 1, observed: at(120), preexisting: true))
+        // SNI from the connection itself works even then, and only for that exact connection.
+        XCTAssertEqual(r.resolve(remoteIP: "9.9.9.9", remotePort: 443, localPort: 50000, observed: at(202), preexisting: true),
+                       NameMatch(name: "secure.example.com", source: .sni))
+        XCTAssertNil(r.resolve(remoteIP: "9.9.9.9", remotePort: 443, localPort: 50001, observed: at(202), preexisting: true))
+        // Connections in the first moments of capture have uncertain starts.
+        XCTAssertNil(r.resolve(remoteIP: "5.6.7.8", remotePort: 443, localPort: 1, observed: at(3), preexisting: false))
+
+        // Two names on one IP within the window: ambiguous, newest first.
+        r.ingest(NameBatch(dns: [DNSObservation(ip: "1.2.3.4", name: "cdn-tenant-b.com", ttl: 300, time: t0 + 110)], capturing: true, since: t0))
+        let amb = r.resolve(remoteIP: "1.2.3.4", remotePort: 443, localPort: 1, observed: at(130), preexisting: false)
+        XCTAssertEqual(amb?.source, .dnsAmbiguous)
+        XCTAssertEqual(amb?.name, "cdn-tenant-b.com")
+        XCTAssertEqual(amb?.alternatives, ["api.example.com"])
+
+        XCTAssertTrue(r.coveredByCapture(observed: at(120), preexisting: false))
+        XCTAssertFalse(r.coveredByCapture(observed: at(120), preexisting: true))
+    }
+
+    func testRawIPFlagOnlyWhenCaptureCouldSeeNames() {
+        var p = Profile(event: event(host: nil, ip: "45.33.32.156", port: 443))
+        XCTAssertFalse(p.heuristic.flags.contains { $0.contains("raw public IP") }, "unobservable ≠ raw IP")
+        p.nameChecked = true
+        XCTAssertTrue(p.heuristic.flags.contains { $0.contains("raw public IP") })
+    }
 }

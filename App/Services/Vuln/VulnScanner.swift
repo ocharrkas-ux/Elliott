@@ -8,6 +8,32 @@ struct VulnSettings: Codable, Equatable {
     var includeServices = true
     var autoScanDaily = true
     var lastScan: Date?
+    /// Notify about newly found vulnerabilities at or above this severity (newly exploited ones always notify).
+    var notifyAt: Severity = .critical
+    var notify = true
+    /// Look up NVD products for apps/Homebrew formulae missing from the built-in table.
+    var autoMapCPE = true
+    var lastExploitCheck: Date?
+    var lastEPSS: Date?
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = VulnSettings()
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled
+        projectFolders = try c.decodeIfPresent([String].self, forKey: .projectFolders) ?? d.projectFolders
+        includeApps = try c.decodeIfPresent(Bool.self, forKey: .includeApps) ?? d.includeApps
+        includeHomebrew = try c.decodeIfPresent(Bool.self, forKey: .includeHomebrew) ?? d.includeHomebrew
+        includeServices = try c.decodeIfPresent(Bool.self, forKey: .includeServices) ?? d.includeServices
+        autoScanDaily = try c.decodeIfPresent(Bool.self, forKey: .autoScanDaily) ?? d.autoScanDaily
+        lastScan = try c.decodeIfPresent(Date.self, forKey: .lastScan)
+        notifyAt = try c.decodeIfPresent(Severity.self, forKey: .notifyAt) ?? d.notifyAt
+        notify = try c.decodeIfPresent(Bool.self, forKey: .notify) ?? d.notify
+        autoMapCPE = try c.decodeIfPresent(Bool.self, forKey: .autoMapCPE) ?? d.autoMapCPE
+        lastExploitCheck = try c.decodeIfPresent(Date.self, forKey: .lastExploitCheck)
+        lastEPSS = try c.decodeIfPresent(Date.self, forKey: .lastEPSS)
+    }
 }
 
 struct VulnScanResult {
@@ -93,10 +119,29 @@ struct VulnScanner {
             }
         }
 
-        // 3. Apps, Homebrew, services, macOS → NVD by CPE
+        // 3a. Apps and formulae missing from the built-in table: find their NVD product (cached 30 days).
+        if settings.autoMapCPE {
+            let unmapped = components.indices.filter {
+                components[$0].cpe == nil && components[$0].version != "?" && [.app, .homebrew].contains(components[$0].kind)
+            }
+            for (n, i) in unmapped.enumerated() {
+                let c = components[i]
+                progress("Finding NVD product for \(c.name) (\(n + 1)/\(unmapped.count))", 0.35 + 0.1 * Double(n) / Double(max(1, unmapped.count)))
+                let name = c.kind == .homebrew ? c.name.replacingOccurrences(of: #"@[\d.]+$"#, with: "", options: .regularExpression) : c.name
+                let hint = c.kind == .app ? Self.vendorHint(appPath: c.location) : nil
+                if c.kind == .app && hint == nil { continue }   // App Store / unsigned: no way to confirm the vendor
+                if let cpe = await db.cpeLookup(name: name, vendorHint: hint) {
+                    components[i].cpe = cpe
+                    components[i].cpeAuto = true
+                }
+            }
+            r.components = components
+        }
+
+        // 3b. Apps, Homebrew, services, macOS → NVD by CPE
         let cpeComponents = components.filter { $0.cpe != nil && $0.version != "?" }
         for (i, c) in cpeComponents.enumerated() {
-            progress("NVD: \(c.display) (\(i + 1)/\(cpeComponents.count))", 0.35 + 0.4 * Double(i) / Double(max(1, cpeComponents.count)))
+            progress("NVD: \(c.display) (\(i + 1)/\(cpeComponents.count))", 0.45 + 0.3 * Double(i) / Double(max(1, cpeComponents.count)))
             do {
                 var vulns: [Vulnerability]
                 do { vulns = try await db.nvd(cpe: c.cpe!, version: c.version) }
@@ -157,6 +202,17 @@ struct VulnScanner {
             Thread.detachNewThread { finish(work()) }
             DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { finish(nil) }
         }
+    }
+
+    /// The developer behind an app, from its code signature ("apple" for Apple's apps).
+    static func vendorHint(appPath: String) -> String? {
+        guard let info = NSDictionary(contentsOfFile: "\(appPath)/Contents/Info.plist") as? [String: Any],
+              let exe = info["CFBundleExecutable"] as? String else { return nil }
+        let path = "\(appPath)/Contents/MacOS/\(exe)"
+        let (_, team, apple) = PassiveMonitor.staticIdentity(path)
+        if apple { return "apple" }
+        let s = Signers.shared.info(path: path, teamID: team, appleSigned: false)
+        return s.kind == .developer ? s.name : nil
     }
 
     /// GHSA, PYSEC and CVE records for the same flaw collapse into one (the one with a CVSS vector wins).

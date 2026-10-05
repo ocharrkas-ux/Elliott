@@ -28,7 +28,7 @@ struct VulnRow: Identifiable {
 struct VulnView: View {
     enum Tab: String, CaseIterable, Identifiable { case findings, inventory, remediation; var id: String { rawValue } }
     enum Show: String, CaseIterable, Identifiable {
-        case open, exploited = "exploited (KEV)", reachable, exposed = "network-exposed", accepted, fixed, all
+        case open, new = "new since last scan", exploited = "exploited (KEV)", reachable, exposed = "network-exposed", accepted, fixed, all
         var id: String { rawValue }
     }
 
@@ -48,6 +48,7 @@ struct VulnView: View {
         return model.vulnFindings.filter { f in
             switch show {
             case .open: if f.status != .open { return false }
+            case .new: if !model.newVulnIDs.contains(f.id) || f.status != .open { return false }
             case .exploited: if !f.kev || f.status != .open { return false }
             case .reachable: if f.reachability.verdict != .reachable || f.status != .open { return false }
             case .exposed: if f.component.exposedPorts.isEmpty || f.status != .open { return false }
@@ -115,12 +116,23 @@ struct VulnView: View {
             }
             let kev = open.filter(\.kev).count
             if kev > 0 { Label("\(kev) exploited", systemImage: "flame.fill").foregroundStyle(Theme.red).fontWeight(.bold) }
+            let fresh = open.filter { model.newVulnIDs.contains($0.id) }.count
+            if fresh > 0 {
+                Button { show = .new } label: { Label("\(fresh) new", systemImage: "sparkle") }
+                    .buttonStyle(.borderless).foregroundStyle(Theme.amber)
+            }
             let reach = open.filter { $0.reachability.verdict == .reachable }.count
             if reach > 0 { Label("\(reach) reachable", systemImage: "scope").foregroundStyle(Theme.amber) }
             Spacer()
-            if let last = model.settings.vuln.lastScan {
-                Text("scanned \(last.formatted(.relative(presentation: .named)))").font(.caption).foregroundStyle(Theme.dim)
+            VStack(alignment: .trailing, spacing: 1) {
+                if let last = model.settings.vuln.lastScan {
+                    Text("scanned \(last.formatted(.relative(presentation: .named)))")
+                }
+                if let k = model.settings.vuln.lastExploitCheck {
+                    Text(model.exploitChecking ? "checking exploits…" : "exploits checked \(k.formatted(.relative(presentation: .named)))")
+                }
             }
+            .font(.caption).foregroundStyle(Theme.dim)
             if tab == .findings {
                 Picker("Show", selection: $show) { ForEach(Show.allCases) { Text($0.rawValue).tag($0) } }
                     .labelsHidden().frame(width: 150)
@@ -156,7 +168,15 @@ struct VulnView: View {
                     Text(String(format: "%.1f", r.f.vuln.score)).monospacedDigit()
                 }
             }.width(100)
-            TableColumn("ID", value: \.vulnID) { Text($0.vulnID).font(.callout.monospaced()) }.width(min: 120, ideal: 150)
+            TableColumn("ID", value: \.vulnID) { r in
+                HStack(spacing: 4) {
+                    Text(r.vulnID).font(.callout.monospaced())
+                    if model.newVulnIDs.contains(r.id) {
+                        Text("NEW").font(.caption2.weight(.heavy)).padding(.horizontal, 4)
+                            .foregroundStyle(.black).background(Theme.amber, in: RoundedRectangle(cornerRadius: 3))
+                    }
+                }
+            }.width(min: 140, ideal: 180)
             TableColumn("Component", value: \.component) { r in
                 VStack(alignment: .leading, spacing: 1) {
                     Text(r.f.component.display).lineLimit(1)
@@ -356,7 +376,7 @@ struct InventoryTable: View {
             TableColumn("Name", value: \.name) { Text($0.name).lineLimit(1) }.width(min: 140, ideal: 200)
             TableColumn("Version") { Text($0.c.version).monospacedDigit() }.width(100)
             TableColumn("Matched via", value: \.matched) { r in
-                Text(r.c.cpe.map { "NVD \($0)" } ?? r.c.ecosystem.map { "OSV \($0)" } ?? "no CPE mapping")
+                Text(r.c.cpe.map { "NVD \($0)\(r.c.cpeAuto == true ? " (auto)" : "")" } ?? r.c.ecosystem.map { "OSV \($0)" } ?? "no CPE mapping")
                     .foregroundStyle(r.c.cpe == nil && r.c.ecosystem == nil ? .tertiary : .secondary).lineLimit(1)
             }.width(min: 120, ideal: 190)
             TableColumn("Open vulns") { r in
@@ -404,6 +424,27 @@ struct VulnSettingsView: View {
                 Button("Add Folder…") { addFolder() }
             } header: { Text("Projects (software composition analysis)") } footer: {
                 Text("Elliott reads lockfiles (npm, yarn, pnpm, pip/Poetry/uv/Pipfile, Cargo, Go, Bundler, Composer, SwiftPM) under these folders, then checks whether your code imports each vulnerable package and calls the vulnerable functions.")
+                    .font(.caption).foregroundStyle(Theme.dim)
+            }
+
+            Section {
+                Toggle("Notify me about new vulnerabilities", isOn: $model.settings.vuln.notify)
+                if model.settings.vuln.notify {
+                    Picker("Severity", selection: $model.settings.vuln.notifyAt) {
+                        ForEach(Severity.allCases.filter { $0 >= .medium }) { Text("\($0.label.lowercased()) and above").tag($0) }
+                    }
+                }
+                Toggle("Look up NVD products for apps and Homebrew formulae not in Elliott's table", isOn: $model.settings.vuln.autoMapCPE)
+                HStack {
+                    Button(model.exploitChecking ? "Checking…" : "Check Exploit Status Now") { Task { await model.refreshExploitSignals() } }
+                        .disabled(model.exploitChecking || model.vulnFindings.isEmpty)
+                    Spacer()
+                    if let k = model.settings.vuln.lastExploitCheck {
+                        Text("last checked \(k.formatted(.relative(presentation: .named)))").font(.caption).foregroundStyle(Theme.dim)
+                    }
+                }
+            } header: { Text("Staying current") } footer: {
+                Text("Every 3 hours Elliott re-checks CISA's Known Exploited Vulnerabilities list (and daily EPSS scores) against what it has already found, and always notifies when something on this Mac becomes actively exploited. A full rescan runs daily. Product lookups are strict (exact name, vendor confirmed by the app's code signature) and cached for 30 days; matches show as \"(auto)\" in the inventory.")
                     .font(.caption).foregroundStyle(Theme.dim)
             }
 

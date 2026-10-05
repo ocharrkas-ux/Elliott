@@ -63,7 +63,7 @@ struct LocalLLM {
             "Protocol: \(p.key.proto.rawValue.uppercased())",
             p.key.direction == .inbound
                 ? "Local listening port: \(p.key.port) (\(RiskHeuristics.wellKnownPorts[p.key.port] ?? "unregistered"))"
-                : "Destination: \(p.hostname ?? "(no hostname)") port \(p.key.port) (\(RiskHeuristics.wellKnownPorts[p.key.port] ?? "unregistered"))",
+                : "Destination: \(p.hostname.map { "\($0) (from \(NameSource(rawValue: p.hostnameSource ?? "")?.label ?? "unknown source"))" } ?? (p.nameChecked == true ? "raw IP (no DNS lookup or TLS name preceded the connection)" : "hostname not observable")) port \(p.key.port) (\(RiskHeuristics.wellKnownPorts[p.key.port] ?? "unregistered"))",
             "Remote IPs seen: \(p.addresses.prefix(6).joined(separator: ", "))",
             "Connections seen: \(p.count) since \(p.firstSeen.formatted(date: .abbreviated, time: .shortened))",
             "Automated checks: \(h.flags.isEmpty ? "none" : h.flags.joined(separator: "; ")) (score \(h.score))",

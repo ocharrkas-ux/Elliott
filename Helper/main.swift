@@ -49,6 +49,17 @@ final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
         }
     }
 
+    private let capture = NameCapture()
+
+    func setNameCapture(_ on: Bool, reply: @escaping (Bool) -> Void) {
+        if on { capture.start() } else { capture.stop() }
+        reply(capture.isRunning)
+    }
+
+    func names(since cursor: Double, reply: @escaping (Data) -> Void) {
+        reply((try? JSONEncoder.elliott.encode(capture.batch(since: cursor))) ?? Data("{}".utf8))
+    }
+
     func processes(reply: @escaping (Data) -> Void) {
         reply((try? JSONEncoder.elliott.encode(ProcessTable.snapshot(withArgs: true))) ?? Data("[]".utf8))
     }

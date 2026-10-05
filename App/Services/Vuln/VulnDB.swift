@@ -184,11 +184,84 @@ final class VulnDB: @unchecked Sendable {
         return v
     }
 
+    // MARK: CPE dictionary (apps/formulae missing from the built-in table)
+
+    private var cpeMap: [String: CPEMapEntry]?
+    private struct CPEMapEntry: Codable { var cpe: String?; var date: Date }
+
+    /// Finds the NVD "part:vendor:product" for a product name. Strict on purpose: a wrong mapping produces wrong
+    /// CVEs. Accepts only an exact product-name match, and when several vendors ship that name, only the one matching
+    /// `vendorHint` (the developer name from the code signature). Results, including "no match", are cached 30 days.
+    func cpeLookup(name: String, vendorHint: String?) async -> String? {
+        let key = "\(name.lowercased())|\(vendorHint?.lowercased() ?? "")"
+        let file = dir.appendingPathComponent("cpe-map.json")
+        if cpeMap == nil {
+            cpeMap = (try? JSONDecoder.elliott.decode([String: CPEMapEntry].self, from: Data(contentsOf: file))) ?? [:]
+        }
+        if let hit = cpeMap?[key], Date().timeIntervalSince(hit.date) < 30 * 86400 { return hit.cpe }
+
+        var found: String?
+        do {
+            let gap: TimeInterval = (nvdKey?.isEmpty == false) ? 0.7 : 6.5
+            let wait = gap - Date().timeIntervalSince(lastNVD)
+            if wait > 0 { try await Task.sleep(for: .seconds(wait)) }
+            lastNVD = Date()
+            var c = URLComponents(string: "https://services.nvd.nist.gov/rest/json/cpes/2.0")!
+            c.queryItems = [.init(name: "keywordSearch", value: name), .init(name: "resultsPerPage", value: "200")]
+            let data = try await get(c.url!, headers: nvdKey.map { ["apiKey": $0] } ?? [:])
+            let obj = (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+            let names = (obj["products"] as? [[String: Any]] ?? []).compactMap { ($0["cpe"] as? [String: Any])?["cpeName"] as? String }
+            found = Self.bestCPE(for: name, vendorHint: vendorHint, cpeNames: names)
+        } catch {
+            return nil   // don't cache failures (rate limits); try again next scan
+        }
+        cpeMap?[key] = CPEMapEntry(cpe: found, date: Date())
+        if let m = cpeMap, let data = try? JSONEncoder.elliott.encode(m) { try? data.write(to: file, options: .atomic) }
+        return found
+    }
+
+    static func norm(_ s: String) -> String { s.lowercased().filter { $0.isLetter || $0.isNumber } }
+
+    /// Platforms a Mac app can't be: a product listed only for these is the wrong product.
+    static let otherPlatforms: Set<String> = ["android", "iphone_os", "ios", "ipados", "windows", "windows_phone", "linux"]
+
+    static func bestCPE(for name: String, vendorHint: String?, cpeNames: [String]) -> String? {
+        let target = norm(name.replacingOccurrences(of: #"(?i)\s*(\.app|app)$"#, with: "", options: .regularExpression))
+        guard target.count >= 3 else { return nil }
+        // Desktop editions are often separate products ("signal-desktop" vs the mobile "signal").
+        let desktopVariants = ["desktop", "formac", "macos", "formacos", "mac"].map { target + $0 }
+        var platforms: [String: Set<String>] = [:]   // pair → target_sw values seen
+        var desktop = Set<String>()
+        for n in cpeNames {
+            let p = n.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+            guard p.count > 10, p[2] == "a" || p[2] == "o" else { continue }
+            let vendor = norm(p[3]), product = norm(p[4])
+            let pair = "\(p[2]):\(p[3]):\(p[4])"
+            // "Firefox" = mozilla:firefox; "Google Chrome" = google:chrome; "Visual Studio Code" = microsoft:visual_studio_code
+            if product == target || vendor + product == target {
+                platforms[pair, default: []].insert(p[10])
+            } else if desktopVariants.contains(product) || desktopVariants.contains(where: { vendor + product == $0 }) {
+                platforms[pair, default: []].insert(p[10])
+                desktop.insert(pair)
+            }
+        }
+        // Drop products that only exist for other platforms.
+        var pairs = Set(platforms.filter { !$0.value.isSubset(of: otherPlatforms) }.keys)
+        if !desktop.intersection(pairs).isEmpty { pairs = desktop.intersection(pairs) }
+        if pairs.count == 1 && vendorHint == nil { return pairs.first }
+        guard let hint = vendorHint.map(norm), !hint.isEmpty else { return nil }
+        let byVendor = pairs.filter { pair in
+            let vendor = norm(String(pair.split(separator: ":")[1]))
+            return vendor.count >= 3 && (hint.hasPrefix(vendor) || vendor.hasPrefix(hint))
+        }
+        return byVendor.count == 1 ? byVendor.first : nil
+    }
+
     // MARK: KEV & EPSS
 
-    func kev() async -> Set<String> {
+    func kev(maxAge: TimeInterval = 86400) async -> Set<String> {
         let name = "kev.json"
-        var data = cached(name, maxAge: 86400)
+        var data = cached(name, maxAge: maxAge)
         if data == nil, let fresh = try? await get(URL(string: "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json")!) {
             store(name, fresh); data = fresh
         }

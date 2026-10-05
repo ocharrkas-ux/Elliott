@@ -11,6 +11,8 @@
 		004BFC832EFE0BF3A24E7D63 /* PolicySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D2515CDF83B484A27A555C /* PolicySync.swift */; };
 		03D0497B4E1163C3A22CC747 /* DetectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8CE660EB9EB320A1F4BBEF9 /* DetectionsView.swift */; };
 		03FAF79BBC2D8F740DD23A82 /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28F5C37C6537AB3634A0811 /* XPCProtocol.swift */; };
+		06594C3FF3C5C465F2160474 /* BackgroundJobs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B34E3CB939F107D7F5A7DD /* BackgroundJobs.swift */; };
+		0CC795408442AD2DDC0814B5 /* PacketParse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 592027D8E646D0B7DACFC830 /* PacketParse.swift */; };
 		0CEAA5FFAEFF222F5FF23713 /* Signers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D414CF45D6ADE1AA3D4290 /* Signers.swift */; };
 		0EBE1EC621CAC745ABD3609B /* Inventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E3FEADDC12E18660E6D703 /* Inventory.swift */; };
 		15AF943C5524CBEC911F31D1 /* ProcessTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED46F76739A785F085031EA3 /* ProcessTable.swift */; };
@@ -33,6 +35,7 @@
 		37B8A659C69F49F2166077B8 /* Inventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E3FEADDC12E18660E6D703 /* Inventory.swift */; };
 		3B10953D1B754EC3541D0B02 /* RemediationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B825D0E3F1CF4A51D3D50E08 /* RemediationViews.swift */; };
 		3C649C858099A60B9399F82B /* PFRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7BCFAB7B0EF004524E166A0 /* PFRules.swift */; };
+		3F10505B5147A8EB55DC69D6 /* PacketParse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 592027D8E646D0B7DACFC830 /* PacketParse.swift */; };
 		41CFF88E0467734CC3C7D37A /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CAF8778366339F269392BD /* Profile.swift */; };
 		42676A50117426FE8C39E057 /* ThreatIntel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24B473EA6F7AB881A9CBFD7 /* ThreatIntel.swift */; };
 		43F279214996927C2A77CCBE /* HelperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FDAAE422A4313DAEBF0DF3 /* HelperClient.swift */; };
@@ -58,11 +61,14 @@
 		69F103716D85ACF3C3E5B372 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48D12D2878952009515C727C /* main.swift */; };
 		6AE749DE5EB553D5C0CC4F8D /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3156B38104B548FED0AB2B39 /* Components.swift */; };
 		6B36E26C1DD9815B44CD4E39 /* ApprovalPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67326EE3FA7EB0FC88FCB684 /* ApprovalPanel.swift */; };
+		75D81330AD992AA1A9D55A7B /* libpcap.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 2C2034011F05783E98ABF70D /* libpcap.tbd */; };
 		788E5DF3CA76E74076021A0D /* LocalLLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E80898B153F6188E81D78A /* LocalLLM.swift */; };
+		78917AFC68F3CF2A32BAAA36 /* PacketParse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 592027D8E646D0B7DACFC830 /* PacketParse.swift */; };
 		7E12B43A6D4A8D11A7F4EE45 /* VulnView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A76BC7B3B4A89659321354B /* VulnView.swift */; };
 		7F5BE77C88A0BC34166E3037 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35531B8A7629A003C651198C /* Models.swift */; };
 		80E291B98F29873EE0764047 /* ElliottApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D15E8F00127CABBBDF00F72 /* ElliottApp.swift */; };
 		8141C3AFEB72FB5292A4E3C6 /* DNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C535C908A5B1FA6CA673BA4A /* DNSCache.swift */; };
+		857F8C4716D1456CB119E9AF /* NameResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9900790D6DEEF439B1EF95AA /* NameResolver.swift */; };
 		875312F8E71B928D0B2B2EF8 /* Advisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53F2BCF2E20A9DAFB45973CD /* Advisor.swift */; };
 		8AA7912283D31B4B2F491AA1 /* DNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C535C908A5B1FA6CA673BA4A /* DNSCache.swift */; };
 		8B0FD8477A3C166197C89C7C /* TriageLLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527800D61FCFAB2634524CA9 /* TriageLLM.swift */; };
@@ -85,11 +91,13 @@
 		B04C2CEF19DABCE5E1114240 /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28F5C37C6537AB3634A0811 /* XPCProtocol.swift */; };
 		B0B2692E4E4018012EE3367A /* RiskHeuristics.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA2EF48F36E55E307F981D7 /* RiskHeuristics.swift */; };
 		B2D9903D61E44F7A67E847BA /* Detections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5488DE7CB47D490BAFF0E26 /* Detections.swift */; };
+		B511634FF15A649F2D76E57C /* NameCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E4EA98A6352F244008B02C /* NameCapture.swift */; };
 		B746948C60B8E2A0791EC169 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3713ED4DB62C94C88A3982F8 /* Keychain.swift */; };
 		B8C3E3A03A6FDFC7745EA05E /* PolicySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D2515CDF83B484A27A555C /* PolicySync.swift */; };
 		BADED7A1ADA59DD3CA4DF441 /* IntelViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B5597CD070D5E8C0A9D5A0 /* IntelViews.swift */; };
 		BD15C0330A83BC66ABB7929B /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28F5C37C6537AB3634A0811 /* XPCProtocol.swift */; };
 		BF157DE54C0D79257E36A50D /* DetectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8CE660EB9EB320A1F4BBEF9 /* DetectionsView.swift */; };
+		C2F1C247809D0AFD2B445143 /* PacketParse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 592027D8E646D0B7DACFC830 /* PacketParse.swift */; };
 		C4D9F9BB9638E97E33F2C77F /* IntelViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B5597CD070D5E8C0A9D5A0 /* IntelViews.swift */; };
 		CA6321A763C0A0BF6951FAB7 /* DNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C535C908A5B1FA6CA673BA4A /* DNSCache.swift */; };
 		CBB5C9CA4226C5621452A4BB /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35531B8A7629A003C651198C /* Models.swift */; };
@@ -100,6 +108,8 @@
 		D9F837EDACB7B34276C688AC /* LogAndRulesViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A674263B51CA8727B00DFE /* LogAndRulesViews.swift */; };
 		DBC0CB03C9B4993813AA0734 /* FilterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842553ED94F361781075D0AF /* FilterService.swift */; };
 		DBFD77C14F1DE75CE1232136 /* PFRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7BCFAB7B0EF004524E166A0 /* PFRules.swift */; };
+		DC611E85EB304FDE4968C5C0 /* BackgroundJobs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B34E3CB939F107D7F5A7DD /* BackgroundJobs.swift */; };
+		DDAC93880DA4767BCDF48622 /* NameResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9900790D6DEEF439B1EF95AA /* NameResolver.swift */; };
 		E140250612FB7DAB5B057DE3 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35531B8A7629A003C651198C /* Models.swift */; };
 		E296EFCBDAE5B09762C83B2E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB3B7B73A54B195B2937C55D /* Assets.xcassets */; };
 		E373E74FAA6F99EC62EBF5D6 /* ElliottTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A881B98FB5CF46BE435FA6A /* ElliottTests.swift */; };
@@ -201,6 +211,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		05B34E3CB939F107D7F5A7DD /* BackgroundJobs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundJobs.swift; sourceTree = "<group>"; };
 		07B5597CD070D5E8C0A9D5A0 /* IntelViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelViews.swift; sourceTree = "<group>"; };
 		0B8A2EF7A58AA4AC5C8C83B0 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		105A94C8EE98F630C34FC9F9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -212,6 +223,7 @@
 		1FAC45639D46F50320708F45 /* VulnScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VulnScanner.swift; sourceTree = "<group>"; };
 		21E07D80729DD851FEEF1C06 /* VulnModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VulnModels.swift; sourceTree = "<group>"; };
 		267FB12381EF6FFC9596D8AE /* CodeIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeIdentity.swift; sourceTree = "<group>"; };
+		2C2034011F05783E98ABF70D /* libpcap.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libpcap.tbd; path = usr/lib/libpcap.tbd; sourceTree = SDKROOT; };
 		2C70A7403DFC04E89131A258 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		3156B38104B548FED0AB2B39 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		35531B8A7629A003C651198C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -226,6 +238,7 @@
 		53F2BCF2E20A9DAFB45973CD /* Advisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Advisor.swift; sourceTree = "<group>"; };
 		558F46224DE3458A1F092C24 /* ElliottNE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ElliottNE.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		575EEC4219C57ECC9FC33A8D /* FilterClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterClient.swift; sourceTree = "<group>"; };
+		592027D8E646D0B7DACFC830 /* PacketParse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketParse.swift; sourceTree = "<group>"; };
 		67326EE3FA7EB0FC88FCB684 /* ApprovalPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalPanel.swift; sourceTree = "<group>"; };
 		69D414CF45D6ADE1AA3D4290 /* Signers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Signers.swift; sourceTree = "<group>"; };
 		70E80898B153F6188E81D78A /* LocalLLM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLLM.swift; sourceTree = "<group>"; };
@@ -233,6 +246,7 @@
 		842553ED94F361781075D0AF /* FilterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterService.swift; sourceTree = "<group>"; };
 		8A0514BFE1AA52EF00AF02E6 /* ElliottNE.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ElliottNE.entitlements; sourceTree = "<group>"; };
 		8FD500E70FE62A556BC66652 /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = System/Library/Frameworks/NetworkExtension.framework; sourceTree = SDKROOT; };
+		9900790D6DEEF439B1EF95AA /* NameResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameResolver.swift; sourceTree = "<group>"; };
 		99343BE1E0440B3F9BA5DD02 /* Elliott.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Elliott.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9C2E94E33B8F526AB456A2CE /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		A5488DE7CB47D490BAFF0E26 /* Detections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Detections.swift; sourceTree = "<group>"; };
@@ -251,6 +265,7 @@
 		C827F5B152B61662BDE78BF9 /* PaloAlto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaloAlto.swift; sourceTree = "<group>"; };
 		CABFFBA82BAFF2498A903C00 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		CDA2EF48F36E55E307F981D7 /* RiskHeuristics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiskHeuristics.swift; sourceTree = "<group>"; };
+		D6E4EA98A6352F244008B02C /* NameCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameCapture.swift; sourceTree = "<group>"; };
 		D81B7BE864C64B1AFFDF62B0 /* Remediation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Remediation.swift; sourceTree = "<group>"; };
 		DC1FECCDF0DFF3845F82B0BA /* RulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesView.swift; sourceTree = "<group>"; };
 		EA53A9942EDC758F8372FFB6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -271,6 +286,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CCBD0F3FCE51FE607543A357 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				75D81330AD992AA1A9D55A7B /* libpcap.tbd in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -279,6 +302,7 @@
 			children = (
 				B39694E0C064061F27AF09B8 /* com.omarcharrkas.elliott.helper.plist */,
 				48D12D2878952009515C727C /* main.swift */,
+				D6E4EA98A6352F244008B02C /* NameCapture.swift */,
 			);
 			path = Helper;
 			sourceTree = "<group>";
@@ -286,6 +310,7 @@
 		170D34412B74C80F6992DEA0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				2C2034011F05783E98ABF70D /* libpcap.tbd */,
 				8FD500E70FE62A556BC66652 /* NetworkExtension.framework */,
 			);
 			name = Frameworks;
@@ -340,6 +365,7 @@
 			children = (
 				C535C908A5B1FA6CA673BA4A /* DNSCache.swift */,
 				35531B8A7629A003C651198C /* Models.swift */,
+				592027D8E646D0B7DACFC830 /* PacketParse.swift */,
 				B7BCFAB7B0EF004524E166A0 /* PFRules.swift */,
 				ED46F76739A785F085031EA3 /* ProcessTable.swift */,
 				B28F5C37C6537AB3634A0811 /* XPCProtocol.swift */,
@@ -364,10 +390,12 @@
 			isa = PBXGroup;
 			children = (
 				53F2BCF2E20A9DAFB45973CD /* Advisor.swift */,
+				05B34E3CB939F107D7F5A7DD /* BackgroundJobs.swift */,
 				575EEC4219C57ECC9FC33A8D /* FilterClient.swift */,
 				F4FDAAE422A4313DAEBF0DF3 /* HelperClient.swift */,
 				3713ED4DB62C94C88A3982F8 /* Keychain.swift */,
 				70E80898B153F6188E81D78A /* LocalLLM.swift */,
+				9900790D6DEEF439B1EF95AA /* NameResolver.swift */,
 				C827F5B152B61662BDE78BF9 /* PaloAlto.swift */,
 				C74BB757E790A6A55DEAC391 /* PassiveMonitor.swift */,
 				51D2515CDF83B484A27A555C /* PolicySync.swift */,
@@ -492,6 +520,7 @@
 			buildConfigurationList = D1029673FBB4B51E06A1785E /* Build configuration list for PBXNativeTarget "ElliottHelper" */;
 			buildPhases = (
 				D7DFFA08BCAFF03342AB54D9 /* Sources */,
+				CCBD0F3FCE51FE607543A357 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -608,6 +637,7 @@
 				546820203BE06AE0D3929385 /* Advisor.swift in Sources */,
 				5F814D43E69CCFBCFACEBDEC /* AppModel.swift in Sources */,
 				F2EA6BC88E4E35C905D8E04C /* ApprovalPanel.swift in Sources */,
+				DC611E85EB304FDE4968C5C0 /* BackgroundJobs.swift in Sources */,
 				A1A8A06E6EFDDCFCA5C502A9 /* Components.swift in Sources */,
 				F82D00731A89C652B073DEE5 /* ConsoleView.swift in Sources */,
 				4C0160FB6C75665DF94FED8E /* DNSCache.swift in Sources */,
@@ -624,7 +654,9 @@
 				D9F837EDACB7B34276C688AC /* LogAndRulesViews.swift in Sources */,
 				494B89C7A55FC94E8A092967 /* MainView.swift in Sources */,
 				35B89B99309FAC1C0A59FC48 /* Models.swift in Sources */,
+				DDAC93880DA4767BCDF48622 /* NameResolver.swift in Sources */,
 				3C649C858099A60B9399F82B /* PFRules.swift in Sources */,
+				78917AFC68F3CF2A32BAAA36 /* PacketParse.swift in Sources */,
 				A17D7D02A244EB87138792B8 /* PaloAlto.swift in Sources */,
 				367521584303543E47E4D893 /* PassiveMonitor.swift in Sources */,
 				B8C3E3A03A6FDFC7745EA05E /* PolicySync.swift in Sources */,
@@ -655,6 +687,7 @@
 				875312F8E71B928D0B2B2EF8 /* Advisor.swift in Sources */,
 				ABD592FFFF9F846C1AA23C00 /* AppModel.swift in Sources */,
 				6B36E26C1DD9815B44CD4E39 /* ApprovalPanel.swift in Sources */,
+				06594C3FF3C5C465F2160474 /* BackgroundJobs.swift in Sources */,
 				6AE749DE5EB553D5C0CC4F8D /* Components.swift in Sources */,
 				48639D0DBC3C846FA30FC3E7 /* ConsoleView.swift in Sources */,
 				CA6321A763C0A0BF6951FAB7 /* DNSCache.swift in Sources */,
@@ -671,7 +704,9 @@
 				F4AE6BBA7E3D11C1555FEE5E /* LogAndRulesViews.swift in Sources */,
 				377FBBDDD4B62BA476771B3A /* MainView.swift in Sources */,
 				7F5BE77C88A0BC34166E3037 /* Models.swift in Sources */,
+				857F8C4716D1456CB119E9AF /* NameResolver.swift in Sources */,
 				FFAF4EDCD9344B023854C2A0 /* PFRules.swift in Sources */,
+				0CC795408442AD2DDC0814B5 /* PacketParse.swift in Sources */,
 				96F50EDB7DC10E071992A520 /* PaloAlto.swift in Sources */,
 				2D707E70BC68AEC288E74C18 /* PassiveMonitor.swift in Sources */,
 				004BFC832EFE0BF3A24E7D63 /* PolicySync.swift in Sources */,
@@ -709,7 +744,9 @@
 			files = (
 				8AA7912283D31B4B2F491AA1 /* DNSCache.swift in Sources */,
 				CBB5C9CA4226C5621452A4BB /* Models.swift in Sources */,
+				B511634FF15A649F2D76E57C /* NameCapture.swift in Sources */,
 				DBFD77C14F1DE75CE1232136 /* PFRules.swift in Sources */,
+				3F10505B5147A8EB55DC69D6 /* PacketParse.swift in Sources */,
 				AF03458421060D790FE9307E /* ProcessTable.swift in Sources */,
 				B04C2CEF19DABCE5E1114240 /* XPCProtocol.swift in Sources */,
 				69F103716D85ACF3C3E5B372 /* main.swift in Sources */,
@@ -726,6 +763,7 @@
 				DBC0CB03C9B4993813AA0734 /* FilterService.swift in Sources */,
 				E140250612FB7DAB5B057DE3 /* Models.swift in Sources */,
 				F5BA3AF0FB04417C4D7544CD /* PFRules.swift in Sources */,
+				C2F1C247809D0AFD2B445143 /* PacketParse.swift in Sources */,
 				15AF943C5524CBEC911F31D1 /* ProcessTable.swift in Sources */,
 				5FA522D9B95D3BB50DFF75FF /* XPCProtocol.swift in Sources */,
 				AE2786917384C228AAC94219 /* main.swift in Sources */,
@@ -791,6 +829,7 @@
 				PRODUCT_NAME = ElliottHelper;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Helper/Helper-Bridging.h";
 			};
 			name = Release;
 		};
@@ -827,6 +866,7 @@
 				PRODUCT_NAME = ElliottHelper;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Helper/Helper-Bridging.h";
 			};
 			name = Debug;
 		};

@@ -17,9 +17,20 @@ struct SettingsView: View {
 
 struct FilterSettings: View {
     @EnvironmentObject var model: AppModel
+    @StateObject private var login = LoginItem()
 
     var body: some View {
         Form {
+            Section {
+                Toggle("Open Elliott at login", isOn: Binding(get: { login.enabled }, set: { login.set($0) }))
+                if login.status == .requiresApproval {
+                    Text("Approve Elliott in System Settings → General → Login Items.").font(.caption).foregroundStyle(Theme.amber)
+                }
+                if let e = login.error { Text(e).font(.caption).foregroundStyle(Theme.red) }
+            } header: { Text("Background") } footer: {
+                Text("Closing the window keeps Elliott running in the menu bar (Quit from the menu bar icon). While it runs it refreshes threat intel and exploit status every 3 hours, rescans daily, and catches up after the Mac wakes. Opening at login means that continues after restarts.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Packet filter (pf) helper") {
                 LabeledContent("Status", value: model.helper.statusLabel)
                 if let e = model.helper.lastError { Text(e).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
@@ -29,6 +40,14 @@ struct FilterSettings: View {
                     Button("Remove Helper") { Task { await model.helper.uninstall() } }
                         .disabled(model.helper.status == .notRegistered)
                 }
+                Toggle("Capture hostnames (DNS answers and TLS server names)", isOn: $model.settings.captureNames)
+                if model.settings.captureNames {
+                    Text(model.nameCapture.active ? "Capturing on \(model.nameCapture.interfaces.joined(separator: ", "))"
+                         : model.helper.connected ? "Starting…" : "Needs the helper above")
+                        .font(.caption).foregroundStyle(model.nameCapture.active ? Theme.green : Theme.dim)
+                }
+                Text("Lets Elliott show which site an app connected to instead of a bare IP. The helper reads only DNS answers and the server name at the start of TLS connections, keeps names, addresses and times in memory (6 h for DNS, 15 min for TLS), and shares them only with Elliott. A name is attached to a connection only if it came from that connection's own TLS handshake, or from a DNS answer that arrived shortly before the connection started and was still valid. QUIC/HTTP3, encrypted DNS in browsers and iCloud Private Relay hide names from capture.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Text("A small root helper loads Elliott's rules into the macOS packet filter (anchor \(PFRules.anchor)). It enforces by address and port, so a rule applies to every app using that destination. In lockdown, new outbound TCP handshakes are held until you approve them. UDP to unapproved destinations is dropped (apps fall back to TCP). Rules stay enforced when the app is closed and after restart.")
                     .font(.caption).foregroundStyle(.secondary)
             }

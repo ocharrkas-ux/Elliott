@@ -23,6 +23,11 @@ struct Profile: Codable, Identifiable, Hashable {
     var edr: EDRSummary?
     /// Known vulnerabilities in the app behind this connection.
     var vuln: VulnSummary?
+    /// How the hostname was established, and other names a shared IP also served (NameSource raw value).
+    var hostnameSource: String?
+    var alternativeNames: [String]?
+    /// Hostname capture was running since before a connection in this profile started.
+    var nameChecked: Bool?
 
     var processName: String { (processPath as NSString).lastPathComponent }
     /// The app bundle name for helpers inside an .app ("Google Chrome" for "Google Chrome Helper").
@@ -43,6 +48,8 @@ struct Profile: Codable, Identifiable, Hashable {
         teamID = e.teamID
         appleSigned = e.appleSigned
         hostname = e.remoteHostname
+        hostnameSource = e.hostnameSource
+        alternativeNames = e.alternativeNames
         firstSeen = e.date
         lastSeen = e.date
         lastOutcome = e.outcome
@@ -53,7 +60,8 @@ struct Profile: Codable, Identifiable, Hashable {
         count += 1
         lastSeen = max(lastSeen, e.date)
         lastOutcome = e.outcome
-        if hostname == nil, let h = e.remoteHostname { hostname = h }
+        if hostname == nil, let h = e.remoteHostname { hostname = h; hostnameSource = e.hostnameSource; alternativeNames = e.alternativeNames }
+        if e.nameChecked == true { nameChecked = true }
         if !addresses.contains(e.remoteAddress), addresses.count < 32 { addresses.append(e.remoteAddress) }
     }
 
