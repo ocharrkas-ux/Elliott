@@ -91,10 +91,10 @@ struct VulnView: View {
                     .help(model.settings.remediation.mode == .off ? "Remediation is off (Settings → Vulnerabilities)" : "Preview and apply fixes")
             }
             ToolbarItem {
-                Button { Task { await model.scanVulnerabilities() } } label: {
-                    Label(model.vulnScanning ? "Scanning…" : "Scan Now", systemImage: "magnifyingglass")
-                }
-                .disabled(model.vulnScanning)
+                // Text, not an icon: a bare magnifying glass next to the search field read as part of search.
+                Button(model.vulnScanning ? "Scanning…" : "Scan Now") { Task { await model.scanVulnerabilities() } }
+                    .disabled(model.vulnScanning)
+                    .help("Re-inventory apps, Homebrew, services and project packages, and check them against the vulnerability databases")
             }
             ToolbarItem {
                 Button { showInspector.toggle() } label: { Label("Details", systemImage: "sidebar.right") }
