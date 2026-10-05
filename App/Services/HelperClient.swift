@@ -145,6 +145,17 @@ final class HelperClient: ObservableObject {
         return data.flatMap { try? JSONDecoder.elliott.decode(NameBatch.self, from: $0) }
     }
 
+    func connections(since cursor: Double) async -> [ConnObservation]? {
+        guard connected, connection != nil else { return nil }
+        let data: Data? = await withCheckedContinuation { cont in
+            let once = Once<Data?>(cont)
+            let proxy = connection?.remoteObjectProxyWithErrorHandler { _ in once.resume(nil) } as? HelperXPC
+            guard let proxy else { return once.resume(nil) }
+            proxy.connections(since: cursor) { once.resume($0) }
+        }
+        return data.flatMap { try? JSONDecoder.elliott.decode([ConnObservation].self, from: $0) }
+    }
+
     func terminate(pid: Int32, startedAt: Date) async -> String? {
         guard connection != nil else { return "helper not connected" }
         return await withCheckedContinuation { cont in

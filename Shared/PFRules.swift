@@ -89,6 +89,8 @@ enum PFRules {
     func setNameCapture(_ on: Bool, reply: @escaping (Bool) -> Void)
     /// JSON NameBatch: observations newer than `cursor` (packet time, seconds since 1970).
     func names(since cursor: Double, reply: @escaping (Data) -> Void)
+    /// JSON [ConnObservation]: new TCP connections with their process (pktap), received after `cursor`.
+    func connections(since cursor: Double, reply: @escaping (Data) -> Void)
     /// Kills a process the user chose to stop, only if `pid` still belongs to the process that started at
     /// `startedAt` (seconds since 1970). Replies nil on success.
     func terminate(pid: Int32, startedAt: Double, reply: @escaping (String?) -> Void)

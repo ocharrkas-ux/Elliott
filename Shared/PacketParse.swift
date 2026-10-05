@@ -45,6 +45,7 @@ struct Packet {
     var payload: ArraySlice<UInt8>
     var tcpSeq: UInt32 = 0
     var syn = false
+    var ack = false
 }
 
 enum PacketParse {
@@ -114,7 +115,7 @@ enum PacketParse {
             let doff = Int(t[l4 + 12] >> 4) * 4
             guard doff >= 20, t.count >= doff else { return nil }
             return Packet(proto: .tcp, src: src, dst: dst, srcPort: sp, dstPort: dp, payload: t[(l4 + doff)...],
-                          tcpSeq: seq, syn: t[l4 + 13] & 0x02 != 0)
+                          tcpSeq: seq, syn: t[l4 + 13] & 0x02 != 0, ack: t[l4 + 13] & 0x10 != 0)
         default:
             return nil
         }

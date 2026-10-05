@@ -1262,15 +1262,16 @@ final class ElliottTests: XCTestCase {
     }
 
     /// A synthetic pktap header + IPv4/TCP frame on a raw-IP (utun) interface.
-    func pktapPacket(pid: Int32, comm: String, epid: Int32 = 0, ecomm: String = "", src: [UInt8], dst: [UInt8], sport: UInt16 = 50000, dport: UInt16 = 443) -> [UInt8] {
+    func pktapPacket(pid: Int32, comm: String, epid: Int32 = 0, ecomm: String = "", src: [UInt8], dst: [UInt8], sport: UInt16 = 50000, dport: UInt16 = 443,
+                    tcpFlags: UInt8 = 0x12, dir: UInt32 = 0) -> [UInt8] {
         var h = [UInt8](repeating: 0, count: 156)
         func put32(_ v: UInt32, _ o: Int) { withUnsafeBytes(of: v.littleEndian) { for (i, b) in $0.enumerated() { h[o + i] = b } } }
         func putStr(_ s: String, _ o: Int) { for (i, b) in s.utf8.enumerated() { h[o + i] = b } }
-        put32(156, 0); put32(1, 4); put32(12, 8); putStr("utun4", 12)
+        put32(156, 0); put32(1, 4); put32(12, 8); putStr("utun4", 12); put32(dir, 36)
         put32(UInt32(bitPattern: pid), 52); putStr(comm, 56)
         put32(UInt32(bitPattern: epid), 84); putStr(ecomm, 88)
         var ip: [UInt8] = [0x45, 0, 0, 40, 0, 0, 0x40, 0, 64, 6, 0, 0] + src + dst
-        ip += [UInt8(sport >> 8), UInt8(sport & 0xFF), UInt8(dport >> 8), UInt8(dport & 0xFF)] + [UInt8](repeating: 0, count: 8) + [0x50, 0x12] + [UInt8](repeating: 0, count: 6)
+        ip += [UInt8(sport >> 8), UInt8(sport & 0xFF), UInt8(dport >> 8), UInt8(dport & 0xFF)] + [UInt8](repeating: 0, count: 8) + [0x50, tcpFlags] + [UInt8](repeating: 0, count: 6)
         return h + ip
     }
 
@@ -1364,5 +1365,36 @@ final class ElliottTests: XCTestCase {
         _ = fc.feed("syn", flow: f1, app: nil, who: "", now: 0)
         _ = fc.feed("x", flow: nil, app: nil, who: "", now: 5)   // sweep
         XCTAssertEqual(fc.feed("reply", flow: f2, app: true, who: "curl", now: 5.1).map(\.0), ["reply"])
+    }
+
+    func testConnTrackerReportsShortConnectionOnceWithProcess() {
+        func feed(_ t: inout ConnTracker, _ b: [UInt8], _ time: Double) -> ConnObservation? {
+            let m = b.withUnsafeBytes { PktapMeta.parse($0)! }
+            return t.feed(m, PacketParse.parse(frame: b[156...], linkType: 12)!, time: time)
+        }
+        // Outgoing SYN without a process, then the SYN-ACK naming curl (as macOS does).
+        let syn = pktapPacket(pid: -1, comm: "", src: [10, 0, 0, 5], dst: [3, 5, 7, 9], sport: 51000, dport: 443, tcpFlags: 0x02, dir: 2)
+        let synAck = pktapPacket(pid: 0, comm: "kernel_task", epid: 4242, ecomm: "curl", src: [3, 5, 7, 9], dst: [10, 0, 0, 5],
+                                 sport: 443, dport: 51000, tcpFlags: 0x12, dir: 1)
+        var t = ConnTracker()
+        XCTAssertNil(feed(&t, syn, 100.0))
+        let c = feed(&t, synAck, 100.02)
+        XCTAssertEqual(c?.name, "curl"); XCTAssertEqual(c?.pid, 4242)
+        XCTAssertEqual(c?.outbound, true)
+        XCTAssertEqual(c?.time, 100.0, "the connection's start is the SYN")
+        XCTAssertEqual(c?.localPort, 51000); XCTAssertEqual(c?.remoteIP, "3.5.7.9"); XCTAssertEqual(c?.remotePort, 443)
+        XCTAssertNil(feed(&t, synAck, 100.03), "reported once")
+
+        // A connection already open when watching began (no SYN seen) isn't reported.
+        var t2 = ConnTracker()
+        XCTAssertNil(feed(&t2, synAck, 5))
+        // Loopback is ignored.
+        var t3 = ConnTracker()
+        let lo = pktapPacket(pid: 9, comm: "ollama", src: [127, 0, 0, 1], dst: [127, 0, 0, 1], tcpFlags: 0x02, dir: 2)
+        XCTAssertNil(feed(&t3, lo, 1))
+        // An outgoing SYN that already names its process is reported at once.
+        var t4 = ConnTracker()
+        let named = pktapPacket(pid: 77, comm: "Safari", src: [10, 0, 0, 5], dst: [3, 5, 7, 9], tcpFlags: 0x02, dir: 2)
+        XCTAssertEqual(feed(&t4, named, 1)?.name, "Safari")
     }
 }

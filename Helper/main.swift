@@ -88,6 +88,10 @@ final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
         reply(capture.isRunning)
     }
 
+    func connections(since cursor: Double, reply: @escaping (Data) -> Void) {
+        reply((try? JSONEncoder.elliott.encode(capture.connections(since: cursor))) ?? Data("[]".utf8))
+    }
+
     func names(since cursor: Double, reply: @escaping (Data) -> Void) {
         reply((try? JSONEncoder.elliott.encode(capture.batch(since: cursor))) ?? Data("{}".utf8))
     }

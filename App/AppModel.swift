@@ -222,6 +222,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var pcaps: [PcapStatus] = []
     private var activeCaptures: [UUID: (target: CaptureTarget, spec: PcapSpec)] = [:]
     private var capturePoller: Task<Void, Never>?
+    private var wireCursor: Double = 0
+    private var wireSeen: [String: Date] = [:]
+    private var identityCache: [String: (String?, String?, Bool)] = [:]
     nonisolated let processCache = ProcessSnapshotCache()
     /// Detections the user marked benign and then cleared: they stay silenced.
     private var suppressedFindingKeys: Set<String> = []
@@ -330,7 +333,13 @@ final class AppModel: ObservableObject {
     }
 
     private func startPassive() {
-        passive.start { [weak self] events in Task { @MainActor in self?.ingest(events) } }
+        passive.start { [weak self] events in
+            Task { @MainActor in
+                guard let self else { return }
+                // Already reported (with its exact start) by connection capture.
+                self.ingest(events.filter { self.wireSeen[Self.wireKey($0)] == nil })
+            }
+        }
     }
 
     // MARK: Connections
@@ -384,6 +393,43 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Connections seen on the wire with their process (helper pktap capture): catches ones that start and finish
+    /// between two nettop samples.
+    private func pollConnections() async {
+        guard let list = await helper.connections(since: wireCursor), !list.isEmpty else { return }
+        wireCursor = list.map(\.received).max() ?? wireCursor
+        scheduleSave()   // a restart must not re-ingest these
+        var events: [FlowEvent] = []
+        for c in list {
+            // The sampler may have caught it first.
+            if recent.prefix(400).contains(where: { $0.localPort == c.localPort && $0.remoteAddress == c.remoteIP
+                && $0.remotePort == c.remotePort && abs($0.date.timeIntervalSince1970 - c.time) < 30 }) { continue }
+            let path = c.path ?? c.name
+            let (sid, team, apple) = await codeIdentity(path)
+            var e = FlowEvent(pid: c.pid, processPath: path, signingID: sid, teamID: team, appleSigned: apple,
+                              direction: c.outbound ? .outbound : .inbound, proto: c.tcp ? .tcp : .udp,
+                              localAddress: c.localIP, localPort: c.localPort,
+                              remoteAddress: c.remoteIP, remotePort: c.remotePort, remoteHostname: nil, outcome: .observed)
+            e.date = Date(timeIntervalSince1970: c.time)
+            events.append(e)
+            wireSeen[Self.wireKey(e)] = Date()
+        }
+        if wireSeen.count > 20_000 { wireSeen = wireSeen.filter { Date().timeIntervalSince($0.value) < 600 } }
+        if !events.isEmpty { ingest(events) }
+    }
+
+    nonisolated static func wireKey(_ e: FlowEvent) -> String {
+        "\(e.proto.rawValue)|\(e.localPort ?? 0)|\(e.remoteAddress)|\(e.remotePort)"
+    }
+
+    /// Code-signing identity of a program (cached; checked off the main thread).
+    private func codeIdentity(_ path: String) async -> (String?, String?, Bool) {
+        if let hit = identityCache[path] { return hit }
+        let id = await Task.detached { PassiveMonitor.staticIdentity(path) }.value
+        identityCache[path] = id
+        return id
+    }
+
     private func pollNames() async {
         let want = settings.captureNames && helper.connected
         if want != helperCaptureOn || (want && !nameCapture.active) {
@@ -401,6 +447,7 @@ final class AppModel: ObservableObject {
         if captureIsolation.unprivileged != batch.privilegesDropped || captureIsolation.sandboxed != batch.sandboxed {
             captureIsolation = (batch.privilegesDropped, batch.sandboxed)
         }
+        await pollConnections()
         for s in batch.sni { checkNameMismatch(s) }
         if let u = batch.unsolicitedDNS, u != unsolicitedDNS { unsolicitedDNS = u; reportUnsolicitedDNS() }
         releaseHeld()
@@ -1937,6 +1984,7 @@ final class AppModel: ObservableObject {
         var sharedRules: [SharedRule]?
         var scanHosts: [ScannedHost]?
         var suppressedFindingKeys: [String]? = nil
+        var wireCursor: Double? = nil
     }
 
     private var stateURL: URL { dir.appendingPathComponent("state.json") }
@@ -1965,6 +2013,7 @@ final class AppModel: ObservableObject {
         decisions = s.decisions ?? []
         findings = s.findings ?? []
         suppressedFindingKeys = Set(s.suppressedFindingKeys ?? [])
+        wireCursor = s.wireCursor ?? 0
         edrBaseline = s.edrBaseline ?? []
         vulnFindings = s.vulnFindings ?? []
         components = s.components ?? []
@@ -2053,7 +2102,8 @@ final class AppModel: ObservableObject {
                               vulnFindings: vulnFindings, components: components, remediations: remediations,
                               newVulnIDs: Array(newVulnIDs),
                               membership: mesh?.membership ?? savedMembership, sharedRules: mesh?.allSharedRules ?? savedSharedRules,
-                              scanHosts: scanHosts, suppressedFindingKeys: Array(suppressedFindingKeys))
+                              scanHosts: scanHosts, suppressedFindingKeys: Array(suppressedFindingKeys),
+                              wireCursor: wireCursor)
             guard let data = try? JSONEncoder.elliott.encode(saved) else { return }
             let key = signingKey ?? StateGuard.existingKey() ?? StateGuard.createKey()
             signingKey = key

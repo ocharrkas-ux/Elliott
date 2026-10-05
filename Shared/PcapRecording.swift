@@ -44,6 +44,17 @@ struct PktapMeta: Equatable {
     var command: String
     var effectivePID: Int32
     var effectiveCommand: String
+    /// PTH_FLAG_DIR_IN (1) / PTH_FLAG_DIR_OUT (2).
+    var flags: UInt32 = 0
+
+    var isOutgoing: Bool? { flags & 2 != 0 ? true : flags & 1 != 0 ? false : nil }
+
+    /// The process the traffic is for: the effective one when the kernel sent it on an app's behalf.
+    var owner: (pid: Int32, name: String)? {
+        if effectivePID > 0 && !effectiveCommand.isEmpty { return (effectivePID, effectiveCommand) }
+        if pid > 0 && !command.isEmpty { return (pid, command) }
+        return nil
+    }
 
     static let minimumLength = 108
 
@@ -69,7 +80,7 @@ struct PktapMeta: Equatable {
         guard len >= minimumLength, len <= b.count else { return nil }
         return PktapMeta(headerLength: len, dlt: Int32(bitPattern: u32(8)), interface: str(12, 24),
                          pid: Int32(bitPattern: u32(52)), command: str(56, 17),
-                         effectivePID: Int32(bitPattern: u32(84)), effectiveCommand: str(88, 17))
+                         effectivePID: Int32(bitPattern: u32(84)), effectiveCommand: str(88, 17), flags: u32(36))
     }
 }
 
@@ -274,4 +285,66 @@ final class PcapNGWriter {
 
 private extension Data {
     mutating func le<T: FixedWidthInteger>(_ v: T) { Swift.withUnsafeBytes(of: v.littleEndian) { append(contentsOf: $0) } }
+}
+
+/// A connection seen on the wire with the process the kernel attributed it to (emitted once per connection).
+struct ConnObservation: Codable, Hashable, Sendable {
+    var time: Double            // first packet (the SYN for TCP), seconds since 1970
+    var tcp: Bool
+    var outbound: Bool
+    var localIP: String
+    var localPort: Int
+    var remoteIP: String
+    var remotePort: Int
+    var pid: Int32
+    var name: String            // process name as the kernel records it (16 chars)
+    var path: String?           // resolved by the helper while the process is alive
+    var start: Double?          // process start time, to tell a reused pid apart
+    var received: Double = 0    // when the helper got it (the polling cursor)
+}
+
+/// Turns the pktap packet stream into one ConnObservation per new connection. A connection is reported once its
+/// direction is known (from the first packet: the SYN for TCP) and some packet names its process (incoming
+/// packets do; outgoing ones often don't). Connections already open when watching began are ignored.
+struct ConnTracker {
+    private struct Flow { var first: Double; var outbound: Bool; var local: (String, Int); var remote: (String, Int); var tcp: Bool; var last: Double; var done: Bool }
+    private var flows: [String: Flow] = [:]
+    private var ignored: [String: Double] = [:]
+    private var lastPrune = 0.0
+    var maxFlows = 50_000
+
+    mutating func feed(_ m: PktapMeta, _ p: Packet, time: Double) -> ConnObservation? {
+        prune(time)
+        guard let out = m.isOutgoing, !Self.isLocalOnly(p.src), !Self.isLocalOnly(p.dst) else { return nil }
+        let x = "\(p.src)|\(p.srcPort)", y = "\(p.dst)|\(p.dstPort)"
+        let key = (p.proto == .tcp ? "t" : "u") + (x < y ? x + ">" + y : y + ">" + x)
+        if ignored[key] != nil { ignored[key] = time; return nil }
+        if flows[key] == nil {
+            let isSyn = p.proto == .tcp && p.syn && !p.ack
+            // TCP: only connections whose opening SYN we saw (others predate watching).
+            if p.proto == .tcp && !isSyn { ignored[key] = time; return nil }
+            // UDP has no handshake: an incoming first packet is nearly always the tail of an older flow.
+            if p.proto == .udp && !out { ignored[key] = time; return nil }
+            guard flows.count < maxFlows else { return nil }
+            flows[key] = Flow(first: time, outbound: out, local: out ? (p.src, p.srcPort) : (p.dst, p.dstPort),
+                              remote: out ? (p.dst, p.dstPort) : (p.src, p.srcPort), tcp: p.proto == .tcp, last: time, done: false)
+        }
+        flows[key]!.last = time
+        guard let f = flows[key], !f.done, let owner = m.owner else { return nil }
+        flows[key]!.done = true
+        return ConnObservation(time: f.first, tcp: f.tcp, outbound: f.outbound, localIP: f.local.0, localPort: f.local.1,
+                               remoteIP: f.remote.0, remotePort: f.remote.1, pid: owner.pid, name: owner.name)
+    }
+
+    static func isLocalOnly(_ ip: String) -> Bool {
+        ip.hasPrefix("127.") || ip == "::1" || ip.hasPrefix("fe80:") || ip.hasPrefix("224.") || ip.hasPrefix("239.")
+            || ip.hasPrefix("ff0") || ip == "255.255.255.255" || ip == "0.0.0.0"
+    }
+
+    private mutating func prune(_ now: Double) {
+        guard now - lastPrune > 30 else { return }
+        lastPrune = now
+        flows = flows.filter { now - $0.value.last < 600 }
+        ignored = ignored.filter { now - $0.value < 600 }
+    }
 }

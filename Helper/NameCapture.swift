@@ -9,6 +9,8 @@ enum CaptureLine: Codable {
     case sni(SNIObservation)
     case stats(unsolicited: Int)
     case started(uid: UInt32, sandboxed: Bool)
+    case conn(ConnObservation)
+    case pktap(active: Bool, kernelFiltered: Bool)
 }
 
 /// Hostname capture with privilege separation. This (root) side only enumerates interfaces and supervises; a
@@ -18,6 +20,8 @@ final class NameCapture: @unchecked Sendable {
     private let lock = NSLock()
     private var dns: [DNSObservation] = []
     private var sni: [SNIObservation] = []
+    private var conns: [ConnObservation] = []
+    private(set) var pktapActive = false
     private var child: Process?
     private var childInterfaces: [String] = []
     private var running = false
@@ -48,13 +52,18 @@ final class NameCapture: @unchecked Sendable {
     func stop() {
         let c: Process? = lock.withLock {
             running = false
-            dns.removeAll(); sni.removeAll()
+            dns.removeAll(); sni.removeAll(); conns.removeAll()
             let c = child; child = nil
             return c
         }
         c?.terminate()
         rescan?.cancel()
         rescan = nil
+    }
+
+    /// Connections seen since `cursor` (a `received` time), oldest first.
+    func connections(since cursor: Double) -> [ConnObservation] {
+        lock.withLock { conns.filter { $0.received > cursor } }
     }
 
     func batch(since cursor: Double) -> NameBatch {
@@ -153,6 +162,16 @@ final class NameCapture: @unchecked Sendable {
                 case .sni(let s): sni.append(s); if sni.count > 20_000 { sni.removeFirst(5_000) }
                 case .stats(let u): unsolicited = u
                 case .started(let uid, let sandboxed): childUID = uid; childSandboxed = sandboxed
+                case .conn(var c):
+                    // Resolve the program now, while the process (often short-lived) is still running.
+                    c.path = ProcessTable.path(c.pid)
+                    c.start = ProcessTable.startTime(c.pid)?.timeIntervalSince1970
+                    c.received = max(Date().timeIntervalSince1970, (conns.last?.received ?? 0) + 0.000001)
+                    conns.append(c)
+                    if conns.count > 20_000 { conns.removeFirst(5_000) }
+                case .pktap(let active, let filtered):
+                    pktapActive = active
+                    log.notice("connection capture (pktap): \(active ? "on" : "unavailable", privacy: .public)\(active ? (filtered ? ", kernel-filtered" : ", filtered in user space") : "", privacy: .public)")
                 }
             }
             if buffer.count > 1_000_000 { buffer.removeAll() }
@@ -179,6 +198,30 @@ enum CaptureChild {
                 pcap_close(h)
             }
         }
+        // Every interface with each packet's process (pktap): new TCP connections and who made them, so even
+        // connections that last a fraction of a second are seen. Only SYNs are needed.
+        var pktap: OpaquePointer?
+        var kernelFiltered = false
+        var perr = [CChar](repeating: 0, count: Int(PCAP_ERRBUF_SIZE))
+        if let h = pcap_create("pktap", &perr) {
+            _ = pcap_set_want_pktap(h, 1)
+            pcap_set_snaplen(h, 320)
+            pcap_set_timeout(h, 1000)
+            // Deliver each SYN at once: the program path is looked up while the process is alive, and a quick
+            // connection's process can exit within a buffering interval. Only SYNs pass the filter, so this is cheap.
+            pcap_set_immediate_mode(h, 1)
+            pcap_set_buffer_size(h, 2 * 1024 * 1024)
+            if pcap_activate(h) >= 0, PcapChild.dltPktap.contains(pcap_datalink(h)) {
+                var prog = bpf_program()
+                if pcap_compile(h, &prog, "tcp[tcpflags] & tcp-syn != 0", 1, PCAP_NETMASK_UNKNOWN) == 0 {
+                    kernelFiltered = pcap_setfilter(h, &prog) == 0
+                    pcap_freecode(&prog)
+                }
+                pktap = h
+            } else {
+                pcap_close(h)
+            }
+        }
         // 2. Drop root for good before touching any packet.
         guard let pw = getpwnam("nobody") else { exit(2) }
         guard setgroups(0, nil) == 0, setgid(pw.pointee.pw_gid) == 0, setuid(pw.pointee.pw_uid) == 0,
@@ -193,13 +236,15 @@ enum CaptureChild {
         }
         let out = Output()
         out.send(.started(uid: getuid(), sandboxed: sandboxed))
-        guard !handles.isEmpty else { exit(4) }
+        out.send(.pktap(active: pktap != nil, kernelFiltered: kernelFiltered))
+        guard !handles.isEmpty || pktap != nil else { exit(4) }
 
         // 4. Parse (unprivileged). One thread per interface; exit if the helper goes away.
         let parent = getppid()
         for (h, link) in handles {
             Thread.detachNewThread { loop(h, link: link, out: out) }
         }
+        if let pktap { Thread.detachNewThread { connectionLoop(pktap, out: out) } }
         while getppid() == parent { sleep(2) }
         exit(0)
     }
@@ -210,6 +255,25 @@ enum CaptureChild {
         func send(_ line: CaptureLine) {
             guard let data = try? JSONEncoder().encode(line) else { return }
             lock.withLock { stdout.write(data + Data("\n".utf8)) }
+        }
+    }
+
+    static func connectionLoop(_ h: OpaquePointer, out: Output) {
+        var header: UnsafeMutablePointer<pcap_pkthdr>?
+        var data: UnsafePointer<UInt8>?
+        var tracker = ConnTracker()
+        while true {
+            let r = pcap_next_ex(h, &header, &data)
+            if r == 0 { continue }
+            if r < 0 { return }
+            guard let header, let data else { continue }
+            let raw = UnsafeRawBufferPointer(start: data, count: Int(header.pointee.caplen))
+            guard let meta = PktapMeta.parse(raw), meta.headerLength < raw.count,
+                  let p = PacketParse.parse(frame: Array(raw[meta.headerLength...])[...], linkType: meta.dlt),
+                  p.proto == .tcp, p.syn   // in case the kernel filter wasn't accepted
+            else { continue }
+            let time = Double(header.pointee.ts.tv_sec) + Double(header.pointee.ts.tv_usec) / 1e6
+            if let c = tracker.feed(meta, p, time: time) { out.send(.conn(c)) }
         }
     }
 
