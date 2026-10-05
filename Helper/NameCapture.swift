@@ -3,49 +3,60 @@ import os
 
 private let log = Logger(subsystem: ElliottIDs.helperLabel, category: "names")
 
-/// Watches DNS answers and TLS ClientHello server names on every active interface (root needed for BPF).
-/// Keeps only names, addresses, ports and timestamps, in memory, for a limited time; never stores payloads.
+/// One line from the capture process to the helper.
+enum CaptureLine: Codable {
+    case dns(DNSObservation)
+    case sni(SNIObservation)
+    case stats(unsolicited: Int)
+    case started(uid: UInt32, sandboxed: Bool)
+}
+
+/// Hostname capture with privilege separation. This (root) side only enumerates interfaces and supervises; a
+/// separate process opens the capture devices as root, drops to "nobody", sandboxes itself, and only then parses
+/// packets. Its output is names, addresses, ports and times, one JSON line each.
 final class NameCapture: @unchecked Sendable {
     private let lock = NSLock()
     private var dns: [DNSObservation] = []
     private var sni: [SNIObservation] = []
-    private var assemblers: [String: SNIAssembler] = [:]
-    private var handles: [String: OpaquePointer] = [:]
+    private var child: Process?
+    private var childInterfaces: [String] = []
     private var running = false
+    private var crashes: [Date] = []
+    private var useSandbox = true
+    private var unsolicited = 0
+    private var childUID: UInt32?
+    private var childSandboxed = false
+    private var buffer = Data()
     private(set) var since: Double = 0
     private var rescan: DispatchSourceTimer?
 
-    /// DNS responses, plus outbound packets to TLS ports (SYNs and the first data segments are what matter).
-    static let filter = "udp src port 53 or (tcp and (dst port 443 or dst port 8443 or dst port 9443 or dst port 993 or dst port 995 or dst port 465 or dst port 853 or dst port 5223))"
-
-    var interfaces: [String] { lock.withLock { Array(handles.keys).sorted() } }
     var isRunning: Bool { lock.withLock { running } }
 
     func start() {
         let already: Bool = lock.withLock { let r = running; running = true; return r }
         guard !already else { return }
         since = Date().timeIntervalSince1970
-        openInterfaces()
-        // Interfaces come and go (Wi-Fi changes, VPN up/down).
+        relaunchIfNeeded(force: true)
+        // Interfaces come and go (Wi-Fi changes, VPN up/down): restart the capture process with the new set.
         let t = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
         t.schedule(deadline: .now() + 60, repeating: 60)
-        t.setEventHandler { [weak self] in self?.openInterfaces() }
+        t.setEventHandler { [weak self] in self?.relaunchIfNeeded(force: false) }
         t.resume()
         rescan = t
     }
 
     func stop() {
-        lock.withLock {
+        let c: Process? = lock.withLock {
             running = false
-            for (_, h) in handles { pcap_breakloop(h) }
-            handles.removeAll()
             dns.removeAll(); sni.removeAll()
+            let c = child; child = nil
+            return c
         }
+        c?.terminate()
         rescan?.cancel()
         rescan = nil
     }
 
-    /// Observations newer than `cursor` (packet time); old ones are dropped after 6 h (DNS) / 15 min (SNI).
     func batch(since cursor: Double) -> NameBatch {
         lock.withLock {
             let now = Date().timeIntervalSince1970
@@ -53,68 +64,173 @@ final class NameCapture: @unchecked Sendable {
             sni.removeAll { now - $0.time > 15 * 60 }
             let d = dns.filter { $0.time > cursor }, s = sni.filter { $0.time > cursor }
             let newest = max(cursor, d.map(\.time).max() ?? cursor, s.map(\.time).max() ?? cursor)
-            return NameBatch(dns: d, sni: s, capturing: running, interfaces: Array(handles.keys).sorted(), since: since, cursor: newest)
+            return NameBatch(dns: d, sni: s, capturing: running && child != nil, interfaces: childInterfaces, since: since,
+                             cursor: newest, unsolicitedDNS: unsolicited,
+                             privilegesDropped: childUID.map { $0 != 0 }, sandboxed: childUID == nil ? nil : childSandboxed)
         }
     }
 
-    private func openInterfaces() {
-        guard lock.withLock({ running }) else { return }
+    // MARK: Supervision (root, no packet parsing)
+
+    static func interfaces() -> [String] {
         var list: UnsafeMutablePointer<pcap_if_t>?
         var err = [CChar](repeating: 0, count: Int(PCAP_ERRBUF_SIZE))
-        guard pcap_findalldevs(&list, &err) == 0, let first = list else { return }
+        guard pcap_findalldevs(&list, &err) == 0, let first = list else { return [] }
         defer { pcap_freealldevs(list) }
-        var wanted: [String] = []
+        var out: [String] = []
         for dev in sequence(first: first, next: { $0.pointee.next }) {
             let name = String(cString: dev.pointee.name)
             let flags = dev.pointee.flags
             guard flags & UInt32(PCAP_IF_LOOPBACK) == 0, flags & UInt32(PCAP_IF_UP) != 0, flags & UInt32(PCAP_IF_RUNNING) != 0,
                   dev.pointee.addresses != nil,
                   ["en", "utun", "ipsec", "ppp", "bridge"].contains(where: { name.hasPrefix($0) }) else { continue }
-            wanted.append(name)
+            out.append(name)
         }
-        for name in wanted where lock.withLock({ handles[name] == nil }) { open(name) }
+        return out.sorted()
     }
 
-    private func open(_ name: String) {
-        var err = [CChar](repeating: 0, count: Int(PCAP_ERRBUF_SIZE))
-        guard let h = pcap_open_live(name, 2048, 0, 500, &err) else {
-            log.error("pcap_open_live \(name, privacy: .public): \(String(cString: err), privacy: .public)")
-            return
+    private func relaunchIfNeeded(force: Bool) {
+        let ifaces = Self.interfaces()
+        let (shouldStart, old): (Bool, Process?) = lock.withLock {
+            guard running else { return (false, nil) }
+            if !force, child != nil, ifaces == childInterfaces { return (false, nil) }
+            let old = child
+            child = nil
+            return (!ifaces.isEmpty, old)
         }
-        var prog = bpf_program()
-        guard pcap_compile(h, &prog, Self.filter, 1, PCAP_NETMASK_UNKNOWN) == 0, pcap_setfilter(h, &prog) == 0 else {
-            log.error("pcap filter on \(name, privacy: .public) failed")
-            pcap_close(h)
-            return
+        old?.terminationHandler = nil
+        old?.terminate()
+        guard shouldStart, let me = ProcessTable.path(getpid()) else { return }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: me)
+        let sandbox = lock.withLock { useSandbox }
+        p.arguments = ["--capture"] + (sandbox ? [] : ["--no-sandbox"]) + ifaces
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = FileHandle.nullDevice
+        p.standardInput = FileHandle.nullDevice
+        out.fileHandleForReading.readabilityHandler = { [weak self] h in
+            let chunk = h.availableData
+            if chunk.isEmpty { h.readabilityHandler = nil; return }
+            self?.consume(chunk)
         }
-        pcap_freecode(&prog)
-        let link = pcap_datalink(h)
-        lock.withLock { handles[name] = h; assemblers[name] = SNIAssembler() }
-        Thread.detachNewThread { [weak self] in
-            self?.loop(h, name: name, link: link)
-            pcap_close(h)
-            self?.lock.withLock { if self?.handles[name] == h { self?.handles[name] = nil } }
+        p.terminationHandler = { [weak self] proc in self?.childExited(proc) }
+        do {
+            try p.run()
+            lock.withLock { child = p; childInterfaces = ifaces; childUID = nil }
+        } catch {
+            log.error("capture process failed to start: \(error.localizedDescription, privacy: .public)")
         }
     }
 
-    private func loop(_ h: OpaquePointer, name: String, link: Int32) {
+    private func childExited(_ p: Process) {
+        let retry: Bool = lock.withLock {
+            guard running, child === p else { return false }
+            child = nil
+            crashes.append(Date())
+            crashes.removeAll { Date().timeIntervalSince($0) > 60 }
+            // A sandbox profile this macOS won't honor kills the process at once: fall back to privilege drop alone.
+            if useSandbox && crashes.count >= 3 {
+                useSandbox = false
+                crashes.removeAll()
+                log.error("capture process keeps exiting under the sandbox; continuing without it (still unprivileged)")
+            }
+            return crashes.count < 6
+        }
+        guard retry else { return }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [weak self] in self?.relaunchIfNeeded(force: true) }
+    }
+
+    private func consume(_ chunk: Data) {
+        lock.withLock {
+            buffer.append(chunk)
+            while let nl = buffer.firstIndex(of: UInt8(ascii: "\n")) {
+                let line = buffer[buffer.startIndex..<nl]
+                buffer.removeSubrange(buffer.startIndex...nl)
+                guard line.count < 4096, let msg = try? JSONDecoder().decode(CaptureLine.self, from: line) else { continue }
+                switch msg {
+                case .dns(let d): dns.append(d); if dns.count > 50_000 { dns.removeFirst(10_000) }
+                case .sni(let s): sni.append(s); if sni.count > 20_000 { sni.removeFirst(5_000) }
+                case .stats(let u): unsolicited = u
+                case .started(let uid, let sandboxed): childUID = uid; childSandboxed = sandboxed
+                }
+            }
+            if buffer.count > 1_000_000 { buffer.removeAll() }
+        }
+    }
+}
+
+// MARK: - The capture process (started with --capture)
+
+enum CaptureChild {
+    static let filter = "udp port 53 or (tcp and (dst port 443 or dst port 8443 or dst port 9443 or dst port 993 or dst port 995 or dst port 465 or dst port 853 or dst port 5223))"
+
+    static func run(interfaces: [String], sandbox: Bool) -> Never {
+        // 1. As root: open the capture devices (the only thing root is needed for).
+        var handles: [(OpaquePointer, Int32)] = []
+        for name in interfaces {
+            var err = [CChar](repeating: 0, count: Int(PCAP_ERRBUF_SIZE))
+            guard let h = pcap_open_live(name, 2048, 0, 500, &err) else { continue }
+            var prog = bpf_program()
+            if pcap_compile(h, &prog, filter, 1, PCAP_NETMASK_UNKNOWN) == 0, pcap_setfilter(h, &prog) == 0 {
+                pcap_freecode(&prog)
+                handles.append((h, pcap_datalink(h)))
+            } else {
+                pcap_close(h)
+            }
+        }
+        // 2. Drop root for good before touching any packet.
+        guard let pw = getpwnam("nobody") else { exit(2) }
+        guard setgroups(0, nil) == 0, setgid(pw.pointee.pw_gid) == 0, setuid(pw.pointee.pw_uid) == 0,
+              setuid(0) != 0, getuid() != 0, geteuid() != 0 else { exit(3) }
+        // 3. Sandbox: no files, no network, no processes. Already-open descriptors keep working.
+        var sandboxed = false
+        if sandbox, let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "sandbox_init") {
+            typealias SandboxInit = @convention(c) (UnsafePointer<CChar>, UInt64, UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>) -> Int32
+            var err: UnsafeMutablePointer<CChar>?
+            sandboxed = unsafeBitCast(sym, to: SandboxInit.self)("pure-computation", 0x0001, &err) == 0
+        }
+        let out = Output()
+        out.send(.started(uid: getuid(), sandboxed: sandboxed))
+        guard !handles.isEmpty else { exit(4) }
+
+        // 4. Parse (unprivileged). One thread per interface; exit if the helper goes away.
+        let parent = getppid()
+        for (h, link) in handles {
+            Thread.detachNewThread { loop(h, link: link, out: out) }
+        }
+        while getppid() == parent { sleep(2) }
+        exit(0)
+    }
+
+    final class Output: @unchecked Sendable {
+        private let lock = NSLock()
+        private let stdout = FileHandle.standardOutput
+        func send(_ line: CaptureLine) {
+            guard let data = try? JSONEncoder().encode(line) else { return }
+            lock.withLock { stdout.write(data + Data("\n".utf8)) }
+        }
+    }
+
+    static func loop(_ h: OpaquePointer, link: Int32, out: Output) {
         var header: UnsafeMutablePointer<pcap_pkthdr>?
         var data: UnsafePointer<UInt8>?
-        while lock.withLock({ running && handles[name] == h }) {
+        var dns = DNSMatcher()
+        var tls = SNIAssembler()
+        var reported = 0
+        while true {
             let r = pcap_next_ex(h, &header, &data)
-            if r == 0 { continue }          // timeout
-            if r < 0 { break }              // interface gone or breakloop
+            if r == 0 { continue }
+            if r < 0 { return }
             guard let header, let data else { continue }
-            let len = Int(header.pointee.caplen)
             let time = Double(header.pointee.ts.tv_sec) + Double(header.pointee.ts.tv_usec) / 1e6
-            let frame = Array(UnsafeBufferPointer(start: data, count: len))[...]
+            let frame = Array(UnsafeBufferPointer(start: data, count: Int(header.pointee.caplen)))[...]
             guard let p = PacketParse.parse(frame: frame, linkType: link) else { continue }
             if p.proto == .udp {
-                let answers = PacketParse.dnsAnswers(p, time: time)
-                if !answers.isEmpty { lock.withLock { dns += answers; if dns.count > 50_000 { dns.removeFirst(10_000) } } }
-            } else {
-                let obs: SNIObservation? = lock.withLock { assemblers[name]?.feed(p, time: time) }
-                if let obs { lock.withLock { sni.append(obs); if sni.count > 20_000 { sni.removeFirst(5_000) } } }
+                for a in dns.observe(p, time: time) ?? [] { out.send(.dns(a)) }
+                if dns.unsolicited != reported { reported = dns.unsolicited; out.send(.stats(unsolicited: reported)) }
+            } else if let s = tls.feed(p, time: time) {
+                out.send(.sni(s))
             }
         }
     }

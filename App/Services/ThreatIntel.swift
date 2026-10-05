@@ -118,13 +118,19 @@ struct Feed: Identifiable, Hashable {
 struct IPv4Set {
     private(set) var ranges: [(UInt32, UInt32)] = []
     var count: Int { ranges.count }
+    /// Number of addresses covered (to spot a poisoned list claiming a large part of the internet).
+    var coverage: UInt64 { ranges.reduce(0) { $0 + UInt64($1.1 - $1.0) + 1 } }
+    /// Entries ignored for being implausibly broad.
+    private(set) var dropped = 0
 
+    /// Ranges broader than a /8 are never a legitimate blocklist entry (FireHOL's bogon /3 is one); they're skipped.
     init(lines: some Sequence<Substring>) {
         var raw: [(UInt32, UInt32)] = []
         for line in lines {
             let t = line.trimmingCharacters(in: .whitespaces)
             if t.isEmpty || t.hasPrefix("#") || t.hasPrefix(";") { continue }
             guard let (start, end) = IPv4Set.firstRange(in: t) else { continue }
+            if UInt64(end - start) + 1 > (1 << 24) { dropped += 1; continue }
             raw.append((start, end))
         }
         raw.sort { $0.0 < $1.0 }
@@ -188,7 +194,16 @@ struct IPv4Set {
 
 /// Downloads, caches and matches the blocklists.
 final class ThreatIntel: @unchecked Sendable {
-    struct FeedStatus: Hashable { var entries: Int; var updated: Date?; var error: String? }
+    struct FeedStatus: Hashable {
+        var entries: Int
+        var updated: Date?
+        var error: String?
+        var stale: Bool { updated.map { Date().timeIntervalSince($0) > 24 * 3600 } ?? true }
+    }
+
+    /// Limits a downloaded list must pass before it replaces the cached copy.
+    static let maxDownload = 50 * 1024 * 1024
+    static let maxCoverage: UInt64 = 1 << 28          // ~6% of IPv4: no real blocklist is that broad
 
     private let dir: URL
     private let lock = NSLock()
@@ -217,11 +232,14 @@ final class ThreatIntel: @unchecked Sendable {
             do {
                 var req = URLRequest(url: feed.url, timeoutInterval: 60)
                 req.setValue("Elliott/1.0 (macOS firewall)", forHTTPHeaderField: "User-Agent")
-                let (data, response) = try await URLSession.shared.data(for: req)
-                guard (response as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty else {
-                    throw URLError(.badServerResponse)
+                let (data, response) = try await LimitedDownload.fetch(req, maxBytes: Self.maxDownload)
+                guard response.statusCode == 200, !data.isEmpty else { throw URLError(.badServerResponse) }
+                let previous = (try? String(contentsOf: file, encoding: .utf8)).map { IPv4Set(lines: $0.split(separator: "\n")).count }
+                if let problem = Self.validate(String(decoding: data, as: UTF8.self), previousCount: previous) {
+                    error = "held back: \(problem)"   // keep the last good copy
+                } else {
+                    try data.write(to: file, options: .atomic)
                 }
-                try data.write(to: file, options: .atomic)
             } catch let e {
                 error = e.localizedDescription   // keep using the cached copy, if any
             }
@@ -237,6 +255,23 @@ final class ThreatIntel: @unchecked Sendable {
             status[feed.id] = FeedStatus(entries: set.count, updated: updated, error: error)
         }
     }
+
+    /// Why a freshly downloaded list shouldn't be trusted, or nil if it looks sane.
+    static func validate(_ text: String, previousCount: Int?) -> String? {
+        let set = IPv4Set(lines: text.split(separator: "\n"))
+        if set.coverage > maxCoverage {
+            return "it would cover \(set.coverage.formatted()) addresses, far more than any real blocklist"
+        }
+        if let p = previousCount, p >= 100 {
+            if set.count == 0 { return "it came back empty (was \(p.formatted()) ranges)" }
+            if set.count * 10 < p || set.count > p * 10 {
+                return "its size jumped from \(p.formatted()) to \(set.count.formatted()) ranges"
+            }
+        }
+        return nil
+    }
+
+    var staleFeeds: [String] { lock.withLock { status.filter { $0.value.stale }.map(\.key).sorted() } }
 
     func drop(_ feedID: String) { lock.withLock { sets[feedID] = nil; status[feedID] = nil } }
 
@@ -278,8 +313,8 @@ enum OnlineIntel {
     static func greyNoise(_ ip: String, key: String?) async throws -> Result {
         var req = URLRequest(url: URL(string: "https://api.greynoise.io/v3/community/\(ip)")!, timeoutInterval: 20)
         if let key, !key.isEmpty { req.setValue(key, forHTTPHeaderField: "key") }
-        let (data, response) = try await URLSession.shared.data(for: req)
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let (data, response) = try await LimitedDownload.fetch(req, maxBytes: 2 * 1024 * 1024)
+        let code = response.statusCode
         if code == 404 { return Result() }   // not observed scanning the internet
         guard code == 200, let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw URLError(.badServerResponse)
@@ -309,8 +344,8 @@ enum OnlineIntel {
     }
 
     private static func json(_ req: URLRequest) async throws -> [String: Any] {
-        let (data, response) = try await URLSession.shared.data(for: req)
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let (data, response) = try await LimitedDownload.fetch(req, maxBytes: 2 * 1024 * 1024)
+        let code = response.statusCode
         guard code == 200 else { throw URLError(code == 401 || code == 403 ? .userAuthenticationRequired : .badServerResponse) }
         return try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
     }

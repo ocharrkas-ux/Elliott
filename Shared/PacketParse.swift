@@ -28,6 +28,11 @@ struct NameBatch: Codable, Sendable {
     var interfaces: [String] = []
     var since: Double = 0     // capture start (connections before this have unknown start times)
     var cursor: Double = 0    // pass back to get only newer observations
+    /// DNS answers that matched no query from this Mac (possible spoofing); ignored.
+    var unsolicitedDNS: Int?
+    /// The packet-parsing process runs without root, and inside a sandbox.
+    var privilegesDropped: Bool?
+    var sandboxed: Bool?
 }
 
 struct Packet {
@@ -162,6 +167,39 @@ enum PacketParse {
             i = body + len
         }
         return i >= end ? .notTLS : .needMore                // all extensions seen and no SNI
+    }
+}
+
+/// Accepts DNS answers only when they answer a query this Mac sent: same transaction id, same client port, same
+/// server, same question, within a few seconds. Forged answers from elsewhere on the network don't match.
+struct DNSMatcher {
+    private var queries: [String: (name: String, time: Double)] = [:]
+    private(set) var unsolicited = 0
+    static let window: Double = 10
+
+    /// Queries are remembered; answers come back as observations, or [] when they don't match (counted).
+    mutating func observe(_ p: Packet, time: Double) -> [DNSObservation]? {
+        guard p.proto == .udp else { return nil }
+        if p.dstPort == 53, let h = Self.header(p.payload), !h.response {
+            if queries.count > 4096 { queries = queries.filter { time - $0.value.time < Self.window } }
+            queries["\(h.id)|\(p.srcPort)|\(p.dst)"] = (h.name, time)
+            return nil
+        }
+        guard p.srcPort == 53, let h = Self.header(p.payload), h.response else { return nil }
+        // Several servers may answer the same query, so a query stays valid for the whole window.
+        guard let q = queries["\(h.id)|\(p.dstPort)|\(p.src)"], q.name == h.name, time - q.time <= Self.window, time >= q.time else {
+            unsolicited += 1
+            return []
+        }
+        return PacketParse.dnsAnswers(p, time: time)
+    }
+
+    static func header(_ payload: ArraySlice<UInt8>) -> (id: UInt16, response: Bool, name: String)? {
+        let b = Array(payload)
+        guard b.count >= 12 else { return nil }
+        let qd = Int(b[4]) << 8 | Int(b[5])
+        guard qd >= 1, let (name, _) = DNSCache.readName(b, 12) else { return nil }
+        return (UInt16(b[0]) << 8 | UInt16(b[1]), b[2] & 0x80 != 0, name.lowercased())
     }
 }
 

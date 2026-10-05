@@ -45,6 +45,17 @@ struct FilterSettings: View {
                     Text(model.nameCapture.active ? "Capturing on \(model.nameCapture.interfaces.joined(separator: ", "))"
                          : model.helper.connected ? "Starting…" : "Needs the helper above")
                         .font(.caption).foregroundStyle(model.nameCapture.active ? Theme.green : Theme.dim)
+                    if let unprivileged = model.captureIsolation.unprivileged {
+                        Text(unprivileged
+                             ? (model.captureIsolation.sandboxed == true ? "Packets are parsed by an unprivileged, sandboxed process."
+                                                                         : "Packets are parsed by an unprivileged process (this macOS refused the extra sandbox).")
+                             : "Warning: the capture process didn't drop root privileges.")
+                            .font(.caption).foregroundStyle(unprivileged ? Theme.dim : Theme.red)
+                    }
+                    if model.unsolicitedDNS > 0 {
+                        Text("\(model.unsolicitedDNS) DNS answers ignored because no query from this Mac matched them (possible spoofing).")
+                            .font(.caption).foregroundStyle(Theme.amber)
+                    }
                 }
                 Text("Lets Elliott show which site an app connected to instead of a bare IP. The helper reads only DNS answers and the server name at the start of TLS connections, keeps names, addresses and times in memory (6 h for DNS, 15 min for TLS), and shares them only with Elliott. A name is attached to a connection only if it came from that connection's own TLS handshake, or from a DNS answer that arrived shortly before the connection started and was still valid. QUIC/HTTP3, encrypted DNS in browsers and iCloud Private Relay hide names from capture.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -63,6 +74,24 @@ struct FilterSettings: View {
                 Text("Sees and decides on every connection per app, and pauses them in lockdown. Takes over from the pf helper while it's active. macOS asks you to allow it once in System Settings.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            }
+            Section {
+                let copies = model.quarantinedStates
+                if copies.isEmpty {
+                    Text("No quarantined copies.").foregroundStyle(.secondary)
+                }
+                ForEach(copies, id: \.self) { url in
+                    HStack {
+                        Text(url.lastPathComponent).font(.caption.monospaced())
+                        Spacer()
+                        Button("Reveal") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                        Button("Restore…") { model.restoreQuarantined(url) }
+                    }
+                }
+                LabeledContent("Signed state", value: StateGuard.signingEstablished ? "on (protected marker set by the helper)" : "on (install the helper to protect the marker)")
+            } header: { Text("Data integrity") } footer: {
+                Text("Elliott signs its saved data with a key only it can read from the Keychain. If the file is changed outside Elliott, it's set aside here and rules are recovered from the helper's root-owned copy. Restore a copy only if you know the change was legitimate.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Lockdown") {
                 Toggle("Let Apple-signed system software through without asking", isOn: $model.settings.trustAppleSigned)
@@ -101,6 +130,21 @@ struct LLMSettingsView: View {
                     Button("Test") { Task { await test() } }
                     Text(status).font(.caption).foregroundStyle(.secondary)
                 }
+            }
+            Section("Server identity") {
+                if let issue = model.llmServerIssue {
+                    Text(issue).font(.caption).foregroundStyle(Theme.red)
+                    Button("Trust This Server") { model.trustCurrentLLMServer() }
+                }
+                if let pin = model.settings.llm.pinnedServer {
+                    LabeledContent("Trusted", value: pin.path)
+                    LabeledContent("Signature", value: "\(pin.signer) · \(pin.cdhash.prefix(16))…")
+                } else {
+                    Text("Pinned automatically the first time Elliott talks to the server.").font(.caption).foregroundStyle(.secondary)
+                }
+                Button("Check Now") { Task { _ = await model.checkLLMServer(force: true) } }
+                Text("Elliott remembers which program answers on the LLM port and pauses analysis if a different one shows up, so malware can't stand in for your model and feed Elliott verdicts. Updating Ollama changes its binary; approve it here afterwards.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section {
                 Text("Runs entirely on this Mac. With Ollama: `brew install ollama`, `ollama serve`, then `ollama pull qwen2.5:3b` (about 2 GB). Any small instruction model works; 3–8B models give the best descriptions.")

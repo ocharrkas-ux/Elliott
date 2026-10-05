@@ -65,8 +65,8 @@ struct Decision: Codable, Identifiable, Hashable {
 
     /// One line for the prompt.
     var exampleLine: String {
-        var s = "\(verdict == .allow ? "ALLOWED" : "DENIED"): \(appName) [\(signer)] \(direction.rawValue) "
-        s += direction == .inbound ? "on port \(port.map(String.init) ?? "any")" : "to \(host)\(port.map { ":\($0)" } ?? "")"
+        var s = "\(verdict == .allow ? "ALLOWED" : "DENIED"): " + Untrusted.field("app", appName, max: 80) + " [\(signer)] \(direction.rawValue) "
+        s += direction == .inbound ? "on port \(port.map(String.init) ?? "any")" : "to " + Untrusted.field("host", host, max: 120) + (port.map { ":\($0)" } ?? "")
         if let category { s += ", category \(category)" }
         if risk > 0 { s += ", risk \(risk)" }
         if reputation >= .suspicious { s += ", threat intel: \(reputation.label)" }
@@ -147,14 +147,14 @@ enum Advisor {
         var user = "This person has made \(decisions.count) decisions: \(allows) allowed, \(decisions.count - allows) denied.\n"
         user += "Their most similar past decisions:\n" + examples.map { "- " + $0.exampleLine }.joined(separator: "\n")
         user += "\n\nNew connection:\n"
-        user += "App: \(p.appName) [\(p.appleSigned ? "apple" : p.teamID.map { "team \($0)" } ?? "unsigned")], path \(p.processPath)\n"
+        user += "App: " + Untrusted.field("app", p.appName) + " [\(p.appleSigned ? "apple" : p.teamID.map { "team \($0)" } ?? "unsigned")], path " + Untrusted.field("path", p.processPath) + "\n"
         user += p.key.direction == .inbound ? "Inbound on local port \(p.key.port) \(p.key.proto.rawValue)\n"
-                                            : "Outbound to \(p.hostname ?? p.key.host):\(p.key.port) \(p.key.proto.rawValue)\n"
-        if let a = p.analysis { user += "What it is: \(a.description) (category \(a.category))\n" }
+                                            : "Outbound to " + Untrusted.field("host", p.hostname ?? p.key.host) + ":\(p.key.port) \(p.key.proto.rawValue)\n"
+        if let a = p.analysis { user += "What it is: " + Untrusted.field("description", a.description, max: 400) + " (category \(a.category))\n" }
         user += "Risk score: \(p.riskScore)/100\n"
         if let i = p.intel, !i.hits.isEmpty { user += "Threat intel: " + i.hits.map { "\($0.source): \($0.detail)" }.joined(separator: "; ") + "\n" }
 
-        let content = try await llm.complete(system: system, user: user, schema: schema)
+        let content = try await llm.complete(system: system + "\n" + Untrusted.systemNote, user: user, schema: schema)
         guard let obj = LocalLLM.jsonObject(content), let d = obj["decision"] as? String,
               let verdict = Verdict(rawValue: d.lowercased()) else {
             throw LocalLLM.Failure.badResponse(String(content.prefix(200)))
@@ -168,6 +168,10 @@ enum Advisor {
 
     /// A small model shouldn't confidently wave through something on a threat feed.
     static func guarded(s: inout Suggestion, _ p: Profile) -> Suggestion {
+        if s.verdict == .allow, p.heuristic.score >= 70 {
+            s.confidence = min(s.confidence, 50)
+            s.rationale += " Caution: Elliott's own checks rate this connection high-risk."
+        }
         s.confidence = min(s.confidence, 95)   // a 3B model claiming certainty isn't
         if s.verdict == .allow, p.intel?.reputation == .knownBad {
             s.confidence = min(s.confidence, 40)

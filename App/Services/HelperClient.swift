@@ -102,6 +102,16 @@ final class HelperClient: ObservableObject {
         return data.flatMap { try? JSONDecoder.elliott.decode([ProcInfo].self, from: $0) }
     }
 
+    func markStateSigned() async -> Bool {
+        guard connected, connection != nil else { return false }
+        return await withCheckedContinuation { cont in
+            let once = Once<Bool>(cont)
+            let proxy = connection?.remoteObjectProxyWithErrorHandler { _ in once.resume(false) } as? HelperXPC
+            guard let proxy else { return once.resume(false) }
+            proxy.markStateSigned { once.resume($0) }
+        }
+    }
+
     func setNameCapture(_ on: Bool) async -> Bool {
         guard connected, connection != nil else { return false }
         return await withCheckedContinuation { cont in

@@ -1,5 +1,29 @@
 import Foundation
 
+import Security
+
+/// Which program answers on the LLM port: pinned on first use so a look-alike server can't feed Elliott verdicts.
+struct LLMServerIdentity: Codable, Equatable, Hashable {
+    var path: String
+    var cdhash: String
+    var signer: String
+
+    /// The process listening on `port` (TCP), identified by path, code-directory hash and signer.
+    static func listening(on port: Int) -> LLMServerIdentity? {
+        guard let l = Inventory.listeners().first(where: { $0.port == port && $0.proto == "tcp" }),
+              let path = ProcessTable.path(l.pid) else { return nil }
+        var code: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(URL(fileURLWithPath: path) as CFURL, [], &code) == errSecSuccess, let code else {
+            return LLMServerIdentity(path: path, cdhash: "unsigned", signer: "unsigned")
+        }
+        var info: CFDictionary?
+        SecCodeCopySigningInformation(code, [], &info)
+        let cdhash = ((info as? [String: Any])?[kSecCodeInfoUnique as String] as? Data)?.map { String(format: "%02x", $0) }.joined() ?? "unsigned"
+        let (_, team, apple) = PassiveMonitor.staticIdentity(path)
+        return LLMServerIdentity(path: path, cdhash: cdhash, signer: apple ? "Apple" : team.map { "team \($0)" } ?? (cdhash == "unsigned" ? "unsigned" : "ad-hoc"))
+    }
+}
+
 struct LLMSettings: Codable, Equatable {
     enum Provider: String, Codable, CaseIterable { case ollama, openAICompatible }
     var provider: Provider = .ollama
@@ -7,6 +31,21 @@ struct LLMSettings: Codable, Equatable {
     var baseURL = "http://127.0.0.1:11434"
     var model = "qwen2.5:3b"
     var enabled = true
+    var pinnedServer: LLMServerIdentity?
+
+    var port: Int { URL(string: baseURL)?.port ?? (URL(string: baseURL)?.scheme == "https" ? 443 : 80) }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = LLMSettings()
+        provider = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? d.provider
+        baseURL = try c.decodeIfPresent(String.self, forKey: .baseURL) ?? d.baseURL
+        model = try c.decodeIfPresent(String.self, forKey: .model) ?? d.model
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled
+        pinnedServer = try c.decodeIfPresent(LLMServerIdentity.self, forKey: .pinnedServer)
+    }
 }
 
 /// Describes and risk-rates connections with a small model running on this Mac. Nothing leaves the machine:
@@ -55,18 +94,18 @@ struct LocalLLM {
     func analyze(_ p: Profile) async throws -> Analysis {
         let h = p.heuristic
         let facts: [String] = [
-            "Process: \(p.processName)",
-            "Path: \(p.processPath)",
-            "App: \(p.appName)",
-            "Code signature: " + (p.appleSigned ? "Apple" : p.teamID.map { "developer team \($0), identifier \(p.signingID ?? "?")" } ?? "unsigned/ad-hoc"),
+            "Process: " + Untrusted.field("process", p.processName),
+            "Path: " + Untrusted.field("path", p.processPath),
+            "App: " + Untrusted.field("app", p.appName),
+            "Code signature: " + (p.appleSigned ? "Apple" : p.teamID.map { "developer team \($0), identifier " + Untrusted.field("identifier", p.signingID ?? "?") } ?? "unsigned/ad-hoc"),
             "Direction: \(p.key.direction.rawValue)",
             "Protocol: \(p.key.proto.rawValue.uppercased())",
             p.key.direction == .inbound
                 ? "Local listening port: \(p.key.port) (\(RiskHeuristics.wellKnownPorts[p.key.port] ?? "unregistered"))"
-                : "Destination: \(p.hostname.map { "\($0) (from \(NameSource(rawValue: p.hostnameSource ?? "")?.label ?? "unknown source"))" } ?? (p.nameChecked == true ? "raw IP (no DNS lookup or TLS name preceded the connection)" : "hostname not observable")) port \(p.key.port) (\(RiskHeuristics.wellKnownPorts[p.key.port] ?? "unregistered"))",
+                : "Destination: \(p.hostname.map { Untrusted.field("hostname", $0) + " (from \(NameSource(rawValue: p.hostnameSource ?? "")?.label ?? "unknown source"))" } ?? (p.nameChecked == true ? "raw IP (no DNS lookup or TLS name preceded the connection)" : "hostname not observable")) port \(p.key.port) (\(RiskHeuristics.wellKnownPorts[p.key.port] ?? "unregistered"))",
             "Remote IPs seen: \(p.addresses.prefix(6).joined(separator: ", "))",
             "Connections seen: \(p.count) since \(p.firstSeen.formatted(date: .abbreviated, time: .shortened))",
-            "Automated checks: \(h.flags.isEmpty ? "none" : h.flags.joined(separator: "; ")) (score \(h.score))",
+            "Automated checks: " + (h.flags.isEmpty ? "none" : Untrusted.field("checks", h.flags.joined(separator: "; "), max: 800)) + " (score \(h.score))",
         ]
         var lines = facts
         if let intel = p.intel, !intel.hits.isEmpty {
@@ -80,7 +119,7 @@ struct LocalLLM {
         if let edr = p.edr {
             lines.append("EDR alerts on this program (\(edr.severity.label)): " + edr.titles.joined(separator: "; "))
         }
-        let content = try await complete(system: Self.system, user: lines.joined(separator: "\n"), schema: Self.schema)
+        let content = try await complete(system: Self.system + "\n" + Untrusted.systemNote, user: lines.joined(separator: "\n"), schema: Self.schema)
         return try Self.decode(content, model: settings.model)
     }
 
@@ -108,11 +147,11 @@ struct LocalLLM {
         let base = try baseURL()
         switch settings.provider {
         case .ollama:
-            let (data, _) = try await URLSession.shared.data(from: base.appendingPathComponent("api/tags"))
+            let (data, _) = try await LimitedDownload.fetch(URLRequest(url: base.appendingPathComponent("api/tags")), maxBytes: 4 * 1024 * 1024)
             let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
             return ((obj?["models"] as? [[String: Any]]) ?? []).compactMap { $0["name"] as? String }
         case .openAICompatible:
-            let (data, _) = try await URLSession.shared.data(from: base.appendingPathComponent("v1/models"))
+            let (data, _) = try await LimitedDownload.fetch(URLRequest(url: base.appendingPathComponent("v1/models")), maxBytes: 4 * 1024 * 1024)
             let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
             return ((obj?["data"] as? [[String: Any]]) ?? []).compactMap { $0["id"] as? String }
         }
@@ -144,8 +183,8 @@ struct LocalLLM {
         req.timeoutInterval = 120
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await URLSession.shared.data(for: req)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+        let (data, response) = try await LimitedDownload.fetch(req, maxBytes: 4 * 1024 * 1024)
+        guard response.statusCode == 200 else {
             throw Failure.badResponse(String(decoding: data.prefix(300), as: UTF8.self))
         }
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]

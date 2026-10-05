@@ -290,6 +290,17 @@ struct ConsoleView: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
+            if let alert = model.tamperAlert {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "lock.trianglebadge.exclamationmark.fill")
+                    Text(alert).fontWeight(.semibold).fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    Button("Dismiss") { model.tamperAlert = nil }.buttonStyle(.bordered)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(Color(red: 0.6, green: 0.0, blue: 0.2))
+            }
             let serious = model.openSeriousCount
             if serious > 0 {
                 HStack(spacing: 8) {
@@ -434,7 +445,9 @@ struct ProfileDetail: View {
 
                 GroupBox("Classify") {
                     VStack(alignment: .leading, spacing: 8) {
-                        Picker("Applies to", selection: $scope) { ForEach(RuleScope.allCases) { Text($0.rawValue).tag($0) } }
+                        Picker("Applies to", selection: $scope) {
+                            ForEach(RuleScope.allCases.filter { $0.applies(to: p) }) { Text($0.title(for: p)).tag($0) }
+                        }
                         HStack {
                             Button { model.classify(p, .allow, scope: scope) } label: { Label("Allow", systemImage: "checkmark") }
                                 .tint(Theme.green.opacity(0.8))

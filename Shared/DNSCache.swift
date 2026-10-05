@@ -62,7 +62,7 @@ final class DNSCache: @unchecked Sendable {
     }
 
     /// Reads a (possibly compressed) name at `start`; returns it and the offset just past it.
-    private static func readName(_ b: [UInt8], _ start: Int) -> (String, Int)? {
+    static func readName(_ b: [UInt8], _ start: Int) -> (String, Int)? {
         var labels: [String] = []
         var i = start, end: Int?, hops = 0
         while i < b.count {

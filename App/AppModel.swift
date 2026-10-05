@@ -1,6 +1,8 @@
 import AppKit
 import Combine
+import CryptoKit
 import Foundation
+import SystemConfiguration
 import UserNotifications
 
 struct AppSettings: Codable, Equatable {
@@ -40,14 +42,46 @@ struct AppSettings: Codable, Equatable {
 enum RuleScope: String, CaseIterable, Identifiable {
     case exact = "This destination and port"
     case host = "This destination, any port"
+    case domain = "This domain and its subdomains"
     case app = "Everything this app does"
+    case anyAppHost = "Any app → this destination"
+    case anyAppDomain = "Any app → this domain and its subdomains"
     var id: String { rawValue }
     var label: String {
         switch self {
         case .exact: "dest + port"
         case .host: "any port"
+        case .domain: "domain"
         case .app: "everything"
+        case .anyAppHost: "any app → dest"
+        case .anyAppDomain: "any app → domain"
         }
+    }
+
+    /// Domain scopes need an outbound connection to a hostname; "any app" scopes need an outbound connection.
+    func applies(to p: Profile) -> Bool {
+        switch self {
+        case .exact, .host, .app: return true
+        case .anyAppHost: return p.key.direction == .outbound
+        case .domain, .anyAppDomain: return p.key.direction == .outbound && RuleScope.domain(of: p) != nil
+        }
+    }
+
+    func title(for p: Profile) -> String {
+        let d = RuleScope.domain(of: p).map { "*.\($0)" } ?? ""
+        switch self {
+        case .domain: return "This app → \(d)"
+        case .anyAppHost: return "Any app → \(p.hostname ?? p.key.host)"
+        case .anyAppDomain: return "Any app → \(d)"
+        default: return rawValue
+        }
+    }
+
+    /// The registrable domain of the destination ("github.com" for "api.github.com"); nil for IPs.
+    static func domain(of p: Profile) -> String? {
+        let host = p.hostname ?? p.key.host
+        guard !RiskHeuristics.isIPLiteral(host), host.contains(".") else { return nil }
+        return Advisor.registrableDomain(host)
     }
 }
 
@@ -104,6 +138,9 @@ final class AppModel: ObservableObject {
     private let jobs = BackgroundJobs()
     let names = NameResolver()
     @Published private(set) var nameCapture: (active: Bool, interfaces: [String]) = (false, [])
+    @Published private(set) var captureIsolation: (unprivileged: Bool?, sandboxed: Bool?) = (nil, nil)
+    @Published private(set) var unsolicitedDNS = 0
+    private var reportedUnsolicited = 0
     private var helperCaptureOn = false
     /// New TLS connections wait briefly for their ClientHello's server name before being filed.
     private var heldForName: [(event: FlowEvent, deadline: Date)] = []
@@ -262,7 +299,50 @@ final class AppModel: ObservableObject {
         if nameCapture.active != batch.capturing || nameCapture.interfaces != batch.interfaces {
             nameCapture = (batch.capturing, batch.interfaces)
         }
+        if captureIsolation.unprivileged != batch.privilegesDropped || captureIsolation.sandboxed != batch.sandboxed {
+            captureIsolation = (batch.privilegesDropped, batch.sandboxed)
+        }
+        for s in batch.sni { checkNameMismatch(s) }
+        if let u = batch.unsolicitedDNS, u != unsolicitedDNS { unsolicitedDNS = u; reportUnsolicitedDNS() }
         releaseHeld()
+    }
+
+    /// A connection labelled from DNS whose own TLS handshake names a different server: the DNS answer didn't
+    /// describe this connection (spoofed, or another lookup for a shared IP). Revoke the IP from allow rules for the
+    /// DNS name that the server name doesn't satisfy, and record a detection.
+    private func checkNameMismatch(_ s: SNIObservation) {
+        guard let e = recent.first(where: { $0.localPort == s.localPort && $0.remoteAddress == s.remoteIP && $0.remotePort == s.remotePort
+                                              && abs($0.date.timeIntervalSince1970 - s.time) < 300 }),
+              let dnsName = e.remoteHostname, dnsName != s.name,
+              e.hostnameSource == NameSource.dns.rawValue || e.hostnameSource == NameSource.dnsAmbiguous.rawValue,
+              !(e.alternativeNames ?? []).contains(s.name) else { return }
+        var revoked: [String] = []
+        for i in rules.indices where rules[i].verdict == .allow && rules[i].addresses.contains(s.remoteIP)
+            && rules[i].host != "*" && !RiskHeuristics.isIPLiteral(rules[i].host)
+            && !Rule.hostMatches(rules[i].host, addresses: [], hostname: s.name, address: "") {
+            rules[i].addresses.removeAll { $0 == s.remoteIP }
+            revoked.append(rules[i].host)
+        }
+        if !revoked.isEmpty { rulesChanged(syncFirewall: false) }
+        let app = (e.processPath as NSString).lastPathComponent
+        observe([Observation(
+            key: "net.name-mismatch|\(e.processPath)|\(dnsName)|\(s.name)",
+            draft: Draft(rule: "net.name-mismatch", title: "TLS server name didn't match the DNS name",
+                         detail: "\(app) connected to \(s.remoteIP), which DNS said was \(dnsName), but the connection's own TLS handshake asked for \(s.name). Either the DNS answer was forged, or the address is shared and another lookup was mistaken for this one." + (revoked.isEmpty ? "" : " Elliott removed \(s.remoteIP) from the allow rule\(revoked.count == 1 ? "" : "s") for \(revoked.joined(separator: ", ")) so it isn't trusted on the strength of that DNS answer."),
+                         severity: revoked.isEmpty ? .low : .medium, category: .network, mitre: ["T1557"],
+                         evidence: ["DNS name: \(dnsName)", "TLS server name: \(s.name)", "remote \(s.remoteIP):\(s.remotePort), local port \(s.localPort)"]),
+            path: e.processPath)])
+    }
+
+    private func reportUnsolicitedDNS() {
+        guard unsolicitedDNS - reportedUnsolicited >= 20 else { return }
+        reportedUnsolicited = unsolicitedDNS
+        observe([Observation(
+            key: "net.dns-unsolicited",
+            draft: Draft(rule: "net.dns-unsolicited", title: "DNS answers that no query asked for",
+                         detail: "\(unsolicitedDNS) DNS answers arrived that matched no query this Mac sent (wrong transaction ID, port, server or question). Elliott ignores them. A steady stream suggests someone on the network is trying to forge DNS answers.",
+                         severity: .medium, category: .network, mitre: ["T1557.002"],
+                         evidence: ["\(unsolicitedDNS) unsolicited answers since capture started", "interfaces: \(nameCapture.interfaces.joined(separator: ", "))"]))])
     }
 
     private func commit(_ events: [FlowEvent]) {
@@ -338,6 +418,12 @@ final class AppModel: ObservableObject {
                                 verdict: verdict, addresses: p.addresses)
         case .app: rule = Rule(appKey: p.key.appKey, appName: p.appName, direction: p.key.direction, proto: nil,
                                host: "*", port: nil, verdict: verdict)
+        case .domain: rule = Rule(appKey: p.key.appKey, appName: p.appName, direction: .outbound, proto: nil,
+                                  host: "*.\(RuleScope.domain(of: p) ?? p.key.host)", port: nil, verdict: verdict, addresses: p.addresses)
+        case .anyAppHost: rule = Rule(appKey: "*", appName: "any app", direction: .outbound, proto: nil,
+                                      host: p.hostname ?? p.key.host, port: nil, verdict: verdict, addresses: p.addresses)
+        case .anyAppDomain: rule = Rule(appKey: "*", appName: "any app", direction: .outbound, proto: nil,
+                                        host: "*.\(RuleScope.domain(of: p) ?? p.key.host)", port: nil, verdict: verdict, addresses: p.addresses)
         }
         rule.note = p.analysis?.description
         rule.expires = expires
@@ -347,6 +433,78 @@ final class AppModel: ObservableObject {
         rules.append(rule)
         rulesChanged()
         resolveAddresses(for: rule)
+    }
+
+    /// "example.com" or "*.example.com" (the wildcard also covers example.com itself). Nil if it isn't a usable pattern.
+    nonisolated static func normalizedDomainPattern(_ input: String) -> String? {
+        let s = input.trimmingCharacters(in: .whitespaces).lowercased()
+            .replacingOccurrences(of: #"^https?://"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"/.*$"#, with: "", options: .regularExpression)
+        let wildcard = s.hasPrefix("*.")
+        let host = wildcard ? String(s.dropFirst(2)) : s
+        guard host.range(of: #"^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$"#, options: .regularExpression) != nil else { return nil }
+        // A wildcard over a bare public suffix ("*.com", "*.co.uk", shared hosting) would cover half the internet.
+        // Narrower ones ("*.api.github.com") are fine.
+        let labels = host.split(separator: ".")
+        if wildcard, labels.count == 2, labels[0].count <= 3, labels[1].count == 2,
+           ["co", "com", "net", "org", "gov", "ac", "edu", "ne", "or"].contains(String(labels[0])) { return nil }
+        if wildcard, ["co.uk", "com.au", "co.jp", "com.br", "co.nz", "github.io", "herokuapp.com", "cloudfront.net",
+                      "amazonaws.com", "azurewebsites.net", "appspot.com", "blogspot.com"].contains(host) { return nil }
+        return wildcard ? "*." + host : host
+    }
+
+    /// Allows (or blocks) a domain pattern for any app or one app, typed by the user in the rules view.
+    @discardableResult
+    func addDomainRule(_ input: String, verdict: Verdict, appKey: String = "*", appName: String = "any app") -> Bool {
+        guard let pattern = Self.normalizedDomainPattern(input) else { return false }
+        var rule = Rule(appKey: appKey, appName: appName, direction: .outbound, proto: nil, host: pattern, port: nil, verdict: verdict)
+        rule.note = "Domain rule added by you"
+        // Addresses this Mac already saw for names under the pattern (the packet filter needs IPs).
+        rule.addresses = Array(Set(profiles.values.filter { p in
+            p.key.direction == .outbound && Rule.hostMatches(pattern, addresses: [], hostname: p.hostname ?? p.key.host, address: "")
+        }.flatMap(\.addresses)))
+        rules.removeAll { $0.appKey == appKey && $0.direction == .outbound && $0.host == pattern && $0.port == nil && $0.proto == nil }
+        rules.append(rule)
+        record(Decision(rule: rule, verdict: verdict, source: .manual))
+        rulesChanged()
+        resolveAddresses(for: rule)
+        return true
+    }
+
+    // MARK: LLM server identity
+
+    @Published private(set) var llmServer: LLMServerIdentity?
+    @Published private(set) var llmServerIssue: String?
+    private var llmCheckedAt = Date.distantPast
+    private var llmIssueNotified: LLMServerIdentity?
+
+    /// True if the program on the LLM port is the one pinned on first use (or nothing is listening).
+    func checkLLMServer(force: Bool = false) async -> Bool {
+        if !force, Date().timeIntervalSince(llmCheckedAt) < 60 { return llmServerIssue == nil }
+        llmCheckedAt = Date()
+        let port = settings.llm.port
+        let current = await Task.detached(priority: .utility) { LLMServerIdentity.listening(on: port) }.value
+        llmServer = current
+        guard let current else { llmServerIssue = nil; return true }   // nothing listening: requests just fail
+        guard let pinned = settings.llm.pinnedServer else {
+            settings.llm.pinnedServer = current                           // trust on first use
+            llmServerIssue = nil
+            return true
+        }
+        if pinned == current { llmServerIssue = nil; return true }
+        llmServerIssue = "A different program is answering on the LLM port \(port): \(current.path) (\(current.signer)), not the one Elliott trusted (\(pinned.path)). LLM analysis is paused until you approve it in Settings → Local LLM."
+        if llmIssueNotified != current {
+            llmIssueNotified = current
+            notify(id: "llm-\(current.cdhash)", title: "LLM server changed", body: llmServerIssue!, critical: true)
+        }
+        return false
+    }
+
+    func trustCurrentLLMServer() {
+        guard let s = llmServer else { return }
+        settings.llm.pinnedServer = s
+        llmServerIssue = nil
+        pumpAnalysis()
     }
 
     /// Removes the rule that currently decides this profile.
@@ -567,7 +725,13 @@ final class AppModel: ObservableObject {
     private func pumpAnalysis() {
         guard analysisTask == nil, settings.llm.enabled else { return }
         analysisTask = Task { [weak self] in
-            while let self, self.settings.llm.enabled, let job = self.nextJob() {
+            while let self, self.settings.llm.enabled {
+                guard await self.checkLLMServer() else {
+                    self.llmStatus = "LLM paused: unrecognized server on the LLM port (Settings → Local LLM)"
+                    try? await Task.sleep(for: .seconds(60))
+                    continue
+                }
+                guard let job = self.nextJob() else { break }
                 if case .triage(let fid) = job {
                     await self.runTriage(fid)
                     continue
@@ -669,6 +833,43 @@ final class AppModel: ObservableObject {
     /// Names of every list (built-in and custom), to tell list hits from online-lookup hits.
     private var feedNames: Set<String> { Set(Feed.all.map(\.name) + settings.intel.customFeeds.map(\.name)) }
 
+    /// This Mac's DNS servers and gateway, plus Apple's 17.0.0.0/8: a poisoned feed listing them would break or
+    /// discredit everything, so one source alone can't call them known-bad.
+    private var protectedIPs: Set<String> = []
+    private var protectedCheckedAt = Date.distantPast
+
+    private func refreshProtected() {
+        guard Date().timeIntervalSince(protectedCheckedAt) > 300 else { return }
+        protectedCheckedAt = Date()
+        var ips = Set<String>()
+        let store = SCDynamicStoreCreate(nil, "Elliott" as CFString, nil, nil)
+        if let dns = SCDynamicStoreCopyValue(store, "State:/Network/Global/DNS" as CFString) as? [String: Any] {
+            (dns["ServerAddresses"] as? [String] ?? []).forEach { ips.insert($0) }
+        }
+        for key in ["State:/Network/Global/IPv4", "State:/Network/Global/IPv6"] {
+            if let v = SCDynamicStoreCopyValue(store, key as CFString) as? [String: Any], let r = v["Router"] as? String { ips.insert(r) }
+        }
+        protectedIPs = ips
+    }
+
+    func isProtected(_ ip: String) -> Bool {
+        refreshProtected()
+        return protectedIPs.contains(ip) || ip.hasPrefix("17.")
+    }
+
+    private func protect(_ ip: String, _ hits: [IntelHit]) -> [IntelHit] {
+        let bad = Set(hits.filter { $0.severity == .knownBad }.map(\.source))
+        guard isProtected(ip), bad.count == 1 else { return hits }
+        return hits.map { h in
+            var h = h
+            if h.severity == .knownBad {
+                h.severity = .suspicious
+                h.detail += " (only one source, and this is your gateway/DNS server or Apple: needs corroboration)"
+            }
+            return h
+        }
+    }
+
     /// Anything overdue (after launch or wake): intel, exploit signals, the daily scan.
     func runDueChecks() async {
         let now = Date()
@@ -703,7 +904,7 @@ final class AppModel: ObservableObject {
             var entry = intel[ip] ?? IPIntel(ip: ip)
             let names = feedNames
             let online = entry.hits.filter { !names.contains($0.source) }
-            entry.hits = threatIntel.hits(for: ip, feeds: feeds) + online
+            entry.hits = protect(ip, threatIntel.hits(for: ip, feeds: feeds) + online)
             entry.checked = Date()
             if entry != intel[ip] { intel[ip] = entry; touched.insert(ip) }
             if !recheck && onlineLookupsEnabled && entry.onlineChecked == nil { onlineQueue.append(ip) }
@@ -1076,7 +1277,32 @@ final class AppModel: ObservableObject {
         let findings = vulnFindings.filter { componentIDs == nil || componentIDs!.contains($0.component.id) }
         var cfg = settings.remediation
         if componentIDs != nil { cfg.minSeverity = .info }   // asked for specific components: cover all their vulns
-        return await Task.detached(priority: .userInitiated) { RemediationPlanner.plans(for: findings, settings: cfg) }.value
+        var plans = await Task.detached(priority: .userInitiated) { RemediationPlanner.plans(for: findings, settings: cfg) }.value
+        await verifyReleases(&plans, cooldownDays: cfg.cooldownDays)
+        return plans
+    }
+
+    /// Package upgrades must target a version the official registry actually publishes, old enough to be past the
+    /// window in which hijacked releases usually get caught.
+    private func verifyReleases(_ plans: inout [RemediationPlan], cooldownDays: Int) async {
+        for i in plans.indices where plans[i].component.kind == .package && plans[i].blocked == nil {
+            guard let target = plans[i].target, let eco = plans[i].component.ecosystem else { continue }
+            switch await Registry.release(ecosystem: eco, name: plans[i].component.name, version: target) {
+            case .published(let date):
+                plans[i].registryVerified = true
+                let age = Date().timeIntervalSince(date)
+                if cooldownDays > 0, age < Double(cooldownDays) * 86400 {
+                    let hours = Int(age / 3600)
+                    plans[i].blocked = "\(plans[i].component.name) \(target) was published \(hours < 48 ? "\(hours) hours" : "\(hours / 24) days") ago. Waiting until it's \(cooldownDays) days old (Settings → Vulnerabilities → Remediation) in case it's a hijacked release."
+                }
+            case .notFound:
+                plans[i].registryVerified = false
+                plans[i].blocked = "\(target) isn't published in the official \(eco) registry. The advisory data may be wrong; not installing it."
+            case .unknown(let why):
+                plans[i].registryVerified = nil
+                plans[i].warnings.append("Couldn't confirm \(target) with the \(eco) registry (\(why)). Automatic mode will skip it.")
+            }
+        }
     }
 
     func applyRemediation(_ plans: [RemediationPlan], automatic: Bool = false) async {
@@ -1152,6 +1378,7 @@ final class AppModel: ObservableObject {
         let cfg = settings.remediation
         let plans = await remediationPlans().filter { p in
             guard p.blocked == nil else { return false }
+            if p.component.kind == .package && p.registryVerified != true { return false }   // never install unverified
             switch p.component.kind {
             case .homebrew: return cfg.homebrew
             case .package: return cfg.projects
@@ -1267,9 +1494,24 @@ final class AppModel: ObservableObject {
 
     private var stateURL: URL { dir.appendingPathComponent("state.json") }
 
+    private var signingKey: SymmetricKey?
+    /// Set when the saved state failed verification at launch.
+    @Published var tamperAlert: String?
+
     private func load() {
-        guard let data = try? Data(contentsOf: stateURL),
-              let s = try? JSONDecoder.elliott.decode(Saved.self, from: data) else { return }
+        guard let file = try? Data(contentsOf: stateURL) else { signingKey = StateGuard.existingKey() ?? StateGuard.createKey(); return }
+        let key = StateGuard.existingKey()
+        let (data, sig) = StateGuard.open(file)
+        switch StateGuard.check(data: data, signature: sig, key: key) {
+        case .valid:
+            signingKey = key
+        case .firstUse:
+            signingKey = StateGuard.createKey()   // adopt the existing file once; every save is signed from now on
+        case .tampered(let why):
+            recoverFromTampering(why)
+            return
+        }
+        guard let s = try? JSONDecoder.elliott.decode(Saved.self, from: data) else { return }
         profiles = Dictionary(s.profiles.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         rules = s.rules
         settings = s.settings
@@ -1285,6 +1527,69 @@ final class AppModel: ObservableObject {
                            uniquingKeysWith: { a, _ in a })
     }
 
+    /// The file can't be trusted: set it aside for inspection, and take rules and lockdown from the helper's
+    /// root-owned copy of the last policy Elliott pushed (if there is one).
+    private func recoverFromTampering(_ why: String) {
+        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        try? FileManager.default.moveItem(at: stateURL, to: dir.appendingPathComponent("state.tampered-\(stamp).json"))
+        // The file was altered, not the key: keep it, so a genuine copy can still be verified and restored.
+        signingKey = StateGuard.existingKey() ?? StateGuard.createKey()
+        var message = "Elliott's saved data failed its integrity check (\(why)). It was set aside as state.tampered-\(stamp).json"
+        if let policy = StateGuard.helperPolicy() {
+            rules = policy.rules
+            settings.lockdown = policy.lockdown
+            message += ". Rules and lockdown were restored from the helper's protected copy."
+        } else {
+            message += ". No protected copy of your rules exists (the helper isn't installed), so they start empty."
+        }
+        tamperAlert = message
+        let content = UNMutableNotificationContent()
+        content.title = "Elliott's data was tampered with"
+        content.body = message
+        content.sound = .defaultCritical
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { ok, _ in
+            if ok { center.add(UNNotificationRequest(identifier: "tamper-\(stamp)", content: content, trigger: nil)) }
+        }
+        scheduleSave()
+    }
+
+    /// Copies set aside after failed integrity checks, newest first.
+    var quarantinedStates: [URL] {
+        ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.lastPathComponent.hasPrefix("state.tampered-") }
+            .sorted { $0.lastPathComponent > $1.lastPathComponent }
+    }
+
+    /// Loads a quarantined copy the user has decided to trust (after a false alarm), then re-signs it. Its rules
+    /// replace the current ones, so the user confirms first.
+    func restoreQuarantined(_ url: URL) {
+        guard let file = try? Data(contentsOf: url) else { return }
+        let (json, _) = StateGuard.open(file)
+        guard let s = try? JSONDecoder.elliott.decode(Saved.self, from: json) else {
+            tamperAlert = "\(url.lastPathComponent) couldn't be read as Elliott data."
+            return
+        }
+        let added = Set(s.rules.map(\.id)).subtracting(rules.map(\.id)).count
+        guard Confirm.run(title: "Restore \(url.lastPathComponent)?",
+                          message: "It contains \(s.rules.count) rules (\(added) not in your current set), \(s.profiles.count) connections and \(s.vulnFindings?.count ?? 0) vulnerability findings. Only restore it if you're sure nothing else edited it: its rules will be enforced.",
+                          action: "Restore and Re-sign", destructive: true) else { return }
+        profiles = Dictionary(s.profiles.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        rules = s.rules
+        settings = s.settings
+        decisions = s.decisions ?? []
+        findings = s.findings ?? []
+        edrBaseline = s.edrBaseline ?? []
+        vulnFindings = s.vulnFindings ?? []
+        components = s.components ?? []
+        remediations = s.remediations ?? []
+        newVulnIDs = Set(s.newVulnIDs ?? [])
+        intel = Dictionary((s.intel ?? []).map { ($0.ip, $0) }, uniquingKeysWith: { a, _ in a })
+        try? FileManager.default.removeItem(at: url)
+        tamperAlert = nil
+        rulesChanged()
+    }
+
     private func scheduleSave() {
         guard !Self.isTestHost else { return }
         saveTask?.cancel()
@@ -1296,7 +1601,11 @@ final class AppModel: ObservableObject {
                               findings: findings, edrBaseline: edrBaseline,
                               vulnFindings: vulnFindings, components: components, remediations: remediations,
                               newVulnIDs: Array(newVulnIDs))
-            if let data = try? JSONEncoder.elliott.encode(saved) { try? data.write(to: stateURL, options: .atomic) }
+            guard let data = try? JSONEncoder.elliott.encode(saved) else { return }
+            let key = signingKey ?? StateGuard.existingKey() ?? StateGuard.createKey()
+            signingKey = key
+            try? StateGuard.seal(data, key: key).write(to: stateURL, options: .atomic)   // one atomic write
+            if !StateGuard.signingEstablished, helper.connected { _ = await helper.markStateSigned() }
         }
     }
 }

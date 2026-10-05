@@ -32,8 +32,8 @@ final class VulnDB: @unchecked Sendable {
         var req = URLRequest(url: url, timeoutInterval: 60)
         req.setValue("Elliott/1.0 (macOS vulnerability scanner)", forHTTPHeaderField: "User-Agent")
         headers.forEach { req.setValue($1, forHTTPHeaderField: $0) }
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        let (data, resp) = try await LimitedDownload.fetch(req, maxBytes: 200 * 1024 * 1024)
+        let code = resp.statusCode
         guard code == 200 else { throw URLError(code == 403 || code == 429 ? .resourceUnavailable : .badServerResponse) }
         return data
     }
@@ -49,8 +49,8 @@ final class VulnDB: @unchecked Sendable {
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try JSONSerialization.data(withJSONObject: ["queries": queries])
-            let (data, resp) = try await URLSession.shared.data(for: req)
-            guard (resp as? HTTPURLResponse)?.statusCode == 200,
+            let (data, resp) = try await LimitedDownload.fetch(req, maxBytes: 100 * 1024 * 1024)
+            guard resp.statusCode == 200,
                   let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let results = obj["results"] as? [[String: Any]] else { throw URLError(.badServerResponse) }
             out += results.map { (($0["vulns"] as? [[String: Any]]) ?? []).compactMap { $0["id"] as? String } }

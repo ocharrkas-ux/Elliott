@@ -37,6 +37,15 @@ final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
         queue.async { reply(self.applyNow(policy)) }
     }
 
+    func markStateSigned(reply: @escaping (Bool) -> Void) {
+        let marker = dir.appendingPathComponent("state-signed")
+        if !FileManager.default.fileExists(atPath: marker.path) {
+            FileManager.default.createFile(atPath: marker.path, contents: Data(Date().description.utf8),
+                                           attributes: [.posixPermissions: 0o644])
+        }
+        reply(FileManager.default.fileExists(atPath: marker.path))
+    }
+
     func clear(reply: @escaping (String?) -> Void) {
         queue.async {
             try? FileManager.default.removeItem(at: self.policyURL)
@@ -106,6 +115,12 @@ final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
         p.waitUntilExit()
         return (out, p.terminationStatus == 0 ? nil : out.trimmingCharacters(in: .whitespacesAndNewlines))
     }
+}
+
+// The unprivileged packet-parsing process (started by NameCapture).
+if CommandLine.arguments.count > 1 && CommandLine.arguments[1] == "--capture" {
+    let rest = Array(CommandLine.arguments.dropFirst(2))
+    CaptureChild.run(interfaces: rest.filter { $0 != "--no-sandbox" }, sandbox: !rest.contains("--no-sandbox"))
 }
 
 let helper = Helper()

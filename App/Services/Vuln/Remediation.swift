@@ -15,6 +15,25 @@ struct RemediationSettings: Codable, Equatable {
     var exposuresInAutomatic = false
     var installIntoVirtualenv = true
     var requireCleanGit = true
+    /// Don't install a release younger than this many days (0 = no cooldown).
+    var cooldownDays = 3
+
+    init() {}
+
+    // Older saves lack newer keys: default them instead of failing the whole load.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = RemediationSettings()
+        mode = try c.decodeIfPresent(Mode.self, forKey: .mode) ?? d.mode
+        minSeverity = try c.decodeIfPresent(Severity.self, forKey: .minSeverity) ?? d.minSeverity
+        allowMajorUpgrades = try c.decodeIfPresent(Bool.self, forKey: .allowMajorUpgrades) ?? d.allowMajorUpgrades
+        homebrew = try c.decodeIfPresent(Bool.self, forKey: .homebrew) ?? d.homebrew
+        projects = try c.decodeIfPresent(Bool.self, forKey: .projects) ?? d.projects
+        exposuresInAutomatic = try c.decodeIfPresent(Bool.self, forKey: .exposuresInAutomatic) ?? d.exposuresInAutomatic
+        installIntoVirtualenv = try c.decodeIfPresent(Bool.self, forKey: .installIntoVirtualenv) ?? d.installIntoVirtualenv
+        requireCleanGit = try c.decodeIfPresent(Bool.self, forKey: .requireCleanGit) ?? d.requireCleanGit
+        cooldownDays = try c.decodeIfPresent(Int.self, forKey: .cooldownDays) ?? d.cooldownDays
+    }
 }
 
 struct RemediationStep: Codable, Hashable {
@@ -55,6 +74,8 @@ struct RemediationPlan: Identifiable, Codable, Hashable {
     var blocked: String?             // why it can't run automatically
     var majorUpgrade = false
     var severity: Severity
+    /// The target version was confirmed in the package's official registry (nil = not checked / not applicable).
+    var registryVerified: Bool?
     var id: String { component.id }
 
     /// Steps that actually change something (not just advice).
@@ -213,8 +234,9 @@ enum RemediationPlanner {
             }
             if settings.installIntoVirtualenv, let py = virtualenvPython(project) {
                 p.steps.append(RemediationStep(kind: .command, summary: "pip install \(c.name)==\(target) into \(((py as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent.split(separator: "/").last ?? "venv")",
-                                               command: [py, "-m", "pip", "install", "--disable-pip-version-check", "\(c.name)==\(target)"], cwd: project,
-                                               undoCommand: [py, "-m", "pip", "install", "--disable-pip-version-check", "\(c.name)==\(c.version)"]))
+                                               // Wheels only: a source distribution would run the package's own setup code.
+                                               command: [py, "-m", "pip", "install", "--disable-pip-version-check", "--only-binary", ":all:", "\(c.name)==\(target)"], cwd: project,
+                                               undoCommand: [py, "-m", "pip", "install", "--disable-pip-version-check", "--only-binary", ":all:", "\(c.name)==\(c.version)"]))
             }
             if p.steps.isEmpty {
                 p.steps.append(RemediationStep(kind: .manual, summary: "Upgrade \(c.name) to \(target) where this environment is defined."))

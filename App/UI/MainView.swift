@@ -73,6 +73,12 @@ struct StatusPanel: View {
     @EnvironmentObject var model: AppModel
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if model.tamperAlert != nil {
+                Text("[!] data integrity check failed").foregroundStyle(Theme.red).fontWeight(.heavy)
+            }
+            if model.llmServerIssue != nil {
+                Text("[!] LLM paused: unknown server").foregroundStyle(Theme.red).fontWeight(.bold)
+            }
             Text(model.backend == .filter ? "[+] enforcing: per-app filter"
                  : model.backend == .packetFilter ? "[+] enforcing: pf" : "[!] observe only")
                 .foregroundStyle(model.enforcing ? Theme.green : Theme.amber)
@@ -89,8 +95,9 @@ struct StatusPanel: View {
             if model.knownBadCount > 0 {
                 Text("[!] \(model.knownBadCount) known-bad destinations").foregroundStyle(Theme.red).fontWeight(.bold)
             }
-            Text("intel: \(model.threatIntel.loadedFeeds) lists · \(model.threatIntel.totalEntries.formatted()) ranges")
-                .foregroundStyle(Theme.dim)
+            let stale = model.threatIntel.staleFeeds.count
+            Text("intel: \(model.threatIntel.loadedFeeds) lists · \(model.threatIntel.totalEntries.formatted()) ranges\(stale > 0 ? " · \(stale) stale" : "")")
+                .foregroundStyle(stale > 0 ? Theme.amber : Theme.dim)
             Text(model.canSuggest ? "advisor: \(model.suggestionCount) suggestions"
                  : "advisor: learning \(model.decisions.count)/\(Advisor.minimumDecisions)")
                 .foregroundStyle(Theme.dim)

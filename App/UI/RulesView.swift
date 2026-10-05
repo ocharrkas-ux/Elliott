@@ -60,6 +60,7 @@ struct RulesView: View {
     @State private var sortOrder = [KeyPathComparator(\RuleRow.created, order: .reverse)]
     @State private var showInspector = true
     @State private var pendingDelete: Set<UUID> = []
+    @State private var addingDomain = false
 
     private func rows() -> [RuleRow] {
         let coverage = model.coverage()
@@ -91,9 +92,14 @@ struct RulesView: View {
         .searchable(text: $search, placement: .toolbar, prompt: "App, host, IP, port or note")
         .toolbar {
             ToolbarItem {
+                Button("Add Domain Rule…") { addingDomain = true }
+                    .help("Allow or block a domain such as example.com or *.example.com")
+            }
+            ToolbarItem {
                 Button { showInspector.toggle() } label: { Label("Details", systemImage: "sidebar.right") }
             }
         }
+        .sheet(isPresented: $addingDomain) { DomainRuleSheet().environmentObject(model).hackerTheme() }
         .inspector(isPresented: $showInspector) {
             Group {
                 if selection.count == 1, let row = rows.first(where: { $0.id == selection.first }) {
@@ -290,5 +296,63 @@ struct RuleDetail: View {
             Text(k).foregroundStyle(.secondary)
             Text(v).textSelection(.enabled).lineLimit(10)
         }
+    }
+}
+
+/// Allow or block a domain (optionally with all subdomains) for any app or one app.
+struct DomainRuleSheet: View {
+    @EnvironmentObject var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var pattern = ""
+    @State private var verdict: Verdict = .allow
+    @State private var appKey = "*"
+
+    private var normalized: String? { AppModel.normalizedDomainPattern(pattern) }
+    private var apps: [(key: String, name: String)] {
+        var seen: [String: String] = [:]
+        for p in model.profiles.values where seen[p.key.appKey] == nil { seen[p.key.appKey] = p.appName }
+        return seen.map { ($0.key, $0.value) }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            GlitchText(text: "// DOMAIN RULE", font: .system(size: 16, weight: .heavy, design: .monospaced))
+            TextField("Domain", text: $pattern, prompt: Text("example.com  or  *.example.com"))
+                .textFieldStyle(.roundedBorder)
+            Group {
+                if pattern.isEmpty {
+                    Text("Use *.example.com to cover example.com and every subdomain.")
+                } else if let n = normalized {
+                    Text(n.hasPrefix("*.") ? "Covers \(n.dropFirst(2)) and every subdomain of it." : "Covers exactly \(n).")
+                } else {
+                    Text("Not a usable domain. Wildcards over a public suffix (*.com, *.co.uk, *.github.io) aren't allowed.")
+                        .foregroundStyle(Theme.red)
+                }
+            }
+            .font(.caption).foregroundStyle(Theme.dim)
+            Picker("Action", selection: $verdict) {
+                Text("Allow").tag(Verdict.allow)
+                Text("Block").tag(Verdict.deny)
+            }
+            .pickerStyle(.segmented)
+            Picker("Applies to", selection: $appKey) {
+                Text("Any app").tag("*")
+                ForEach(apps, id: \.key) { Text($0.name).tag($0.key) }
+            }
+            Text("Outbound connections only. Names come from the network filter, or from DNS answers and TLS server names when hostname capture is on; the packet filter enforces by the addresses those names resolve to.")
+                .font(.caption).foregroundStyle(Theme.dim)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                Button(verdict == .allow ? "Allow Domain" : "Block Domain") {
+                    let name = appKey == "*" ? "any app" : (apps.first { $0.key == appKey }?.name ?? appKey)
+                    if model.addDomainRule(pattern, verdict: verdict, appKey: appKey, appName: name) { dismiss() }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(normalized == nil)
+            }
+        }
+        .padding(20)
+        .frame(width: 460)
     }
 }

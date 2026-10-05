@@ -75,7 +75,9 @@ struct ApprovalView: View {
                         .foregroundStyle(p.analysis == nil ? .secondary : .primary)
                     ForEach(p.heuristic.flags.prefix(4), id: \.self) { Text("• \($0)").font(.caption) }
                     Text(p.processPath).font(.caption.monospaced()).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
-                    Picker("Remember for", selection: $scope) { ForEach(RuleScope.allCases) { Text($0.rawValue).tag($0) } }
+                    Picker("Remember for", selection: $scope) {
+                        ForEach(RuleScope.allCases.filter { $0.applies(to: p) }) { Text($0.title(for: p)).tag($0) }
+                    }
                     HStack {
                         Button("Deny") { model.answer(r, allow: false, remember: scope) }.tint(Theme.red)
                         Button("Deny Once") { model.answer(r, allow: false, remember: nil) }

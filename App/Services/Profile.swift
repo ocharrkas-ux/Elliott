@@ -117,7 +117,8 @@ extension Profile {
         let h = heuristic.score
         guard let a = analysis else { return h }
         let blended = Int((0.6 * Double(a.risk) + 0.4 * Double(h)).rounded())
-        return h >= 70 ? max(blended, h) : blended
+        // The model can't talk risk down much: its text input is attacker-influenced, the checks aren't.
+        return h >= 70 ? max(blended, h) : max(blended, h - 15)
     }
     var riskLevel: RiskLevel { RiskLevel(score: riskScore) }
 }

@@ -223,6 +223,9 @@ struct RemediationSettingsSection: View {
                 Toggle("Project dependencies (re-pin requirements, npm/cargo/go/bundle/composer)", isOn: $model.settings.remediation.projects)
                 Toggle("Also install upgrades into the project's Python virtualenv", isOn: $model.settings.remediation.installIntoVirtualenv)
                 Toggle("Allow major-version upgrades", isOn: $model.settings.remediation.allowMajorUpgrades)
+                Stepper(model.settings.remediation.cooldownDays == 0 ? "Install new releases immediately (no cooldown)"
+                        : "Only install releases at least \(model.settings.remediation.cooldownDays) day\(model.settings.remediation.cooldownDays == 1 ? "" : "s") old",
+                        value: $model.settings.remediation.cooldownDays, in: 0...30)
                 Toggle("Skip projects with uncommitted changes in the files being edited", isOn: $model.settings.remediation.requireCleanGit)
                 if model.settings.remediation.mode == .automatic {
                     Toggle("Automatically block network-exposed sensitive services", isOn: $model.settings.remediation.exposuresInAutomatic)

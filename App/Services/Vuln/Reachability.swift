@@ -215,14 +215,14 @@ enum ReachabilityLLM {
     static func judge(_ f: VulnFinding, llm: LocalLLM) async throws -> (String, String) {
         guard let project = f.component.project else { return ("unclear", "Not a project dependency.") }
         var user = "Dependency: \(f.component.name) \(f.component.version) (\(f.component.ecosystem ?? ""))\n"
-        user += "Advisory \(f.vuln.id): \(f.vuln.summary)\n"
-        if !f.vuln.details.isEmpty { user += "Details: \(String(f.vuln.details.prefix(1500)))\n" }
+        user += "Advisory \(f.vuln.id): " + Untrusted.field("summary", f.vuln.summary) + "\n"
+        if !f.vuln.details.isEmpty { user += "Details: " + Untrusted.block("advisory", f.vuln.details, max: 1500) + "\n" }
         if !f.vuln.symbols.isEmpty { user += "Vulnerable functions per advisory: \(f.vuln.symbols.joined(separator: ", "))\n" }
         user += "Static analysis: \(f.reachability.verdict.rawValue)\n"
         let snips = ReachabilityAnalyzer.snippets(f.reachability, project: project)
-        user += snips.isEmpty ? "No code snippets available.\n" : "Project code using it:\n" + snips.joined(separator: "\n\n")
+        user += snips.isEmpty ? "No code snippets available.\n" : "Project code using it:\n" + snips.map { Untrusted.block("code", $0, max: 800) }.joined(separator: "\n")
 
-        let content = try await llm.complete(system: system, user: user, schema: schema)
+        let content = try await llm.complete(system: system + "\n" + Untrusted.systemNote, user: user, schema: schema)
         guard let obj = LocalLLM.jsonObject(content), let verdict = obj["verdict"] as? String else {
             throw LocalLLM.Failure.badResponse(String(content.prefix(200)))
         }

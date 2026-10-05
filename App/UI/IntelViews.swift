@@ -178,8 +178,8 @@ struct IntelSettingsView: View {
                             }
                             Text(feed.about).font(.caption).foregroundStyle(Theme.dim)
                             if let st {
-                                Text("\(st.entries.formatted()) ranges\(st.updated.map { " · updated \($0.formatted(.relative(presentation: .named)))" } ?? "")\(st.error.map { " · ⚠︎ \($0)" } ?? "")")
-                                    .font(.caption2).foregroundStyle(st.error == nil ? Theme.dim : Theme.amber)
+                                Text("\(st.entries.formatted()) ranges\(st.updated.map { " · updated \($0.formatted(.relative(presentation: .named)))" } ?? "")\(st.stale ? " · STALE" : "")\(st.error.map { " · ⚠︎ \($0)" } ?? "")")
+                                    .font(.caption2).foregroundStyle(st.error == nil && !st.stale ? Theme.dim : Theme.amber)
                             }
                         }
                     }

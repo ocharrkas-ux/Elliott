@@ -78,6 +78,9 @@ enum PFRules {
     func clear(reply: @escaping (String?) -> Void)
     /// JSON [ProcInfo] for every process, with arguments (root can read them all).
     func processes(reply: @escaping (Data) -> Void)
+    /// Records (root-owned, so user-level malware can't remove it) that the app's state is signed. Once set, a
+    /// missing signing key or signature means tampering, never "first launch".
+    func markStateSigned(reply: @escaping (Bool) -> Void)
     /// Turns DNS/TLS-SNI hostname capture on or off.
     func setNameCapture(_ on: Bool, reply: @escaping (Bool) -> Void)
     /// JSON NameBatch: observations newer than `cursor` (packet time, seconds since 1970).
