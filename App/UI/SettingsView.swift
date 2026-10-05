@@ -37,6 +37,8 @@ struct FilterSettings: View {
                 HStack {
                     Button("Install Helper") { model.helper.install() }
                         .disabled(model.helper.status == .enabled)
+                    Button("Reinstall Helper") { Task { await model.helper.reinstall() } }
+                        .disabled(model.helper.status == .notRegistered)
                     Button("Remove Helper") { Task { await model.helper.uninstall() } }
                         .disabled(model.helper.status == .notRegistered)
                 }

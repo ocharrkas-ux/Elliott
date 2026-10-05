@@ -123,6 +123,23 @@ if CommandLine.arguments.count > 1 && CommandLine.arguments[1] == "--capture" {
     CaptureChild.run(interfaces: rest.filter { $0 != "--no-sandbox" }, sandbox: !rest.contains("--no-sandbox"))
 }
 
+// When Elliott is updated, the helper binary on disk is replaced. Exit so launchd starts the new one on the
+// app's next connection (pf rules stay loaded in the kernel meanwhile; the app re-sends its policy on reconnect).
+func executableIdentity() -> (ino_t, Int)? {
+    var st = stat()
+    guard let path = Bundle.main.executablePath, stat(path, &st) == 0 else { return nil }
+    return (st.st_ino, st.st_mtimespec.tv_sec)
+}
+let launchedBinary = executableIdentity()
+let updateWatch = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+updateWatch.schedule(deadline: .now() + 30, repeating: 30)
+updateWatch.setEventHandler {
+    guard let now = executableIdentity(), let was = launchedBinary, now != was else { return }
+    log.notice("helper binary was updated; exiting so launchd starts the new version")
+    exit(0)
+}
+updateWatch.resume()
+
 let helper = Helper()
 let listener = NSXPCListener(machServiceName: ElliottIDs.helperLabel)
 listener.delegate = helper

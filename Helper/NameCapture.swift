@@ -188,7 +188,8 @@ enum CaptureChild {
         if sandbox, let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "sandbox_init") {
             typealias SandboxInit = @convention(c) (UnsafePointer<CChar>, UInt64, UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>) -> Int32
             var err: UnsafeMutablePointer<CChar>?
-            sandboxed = unsafeBitCast(sym, to: SandboxInit.self)("pure-computation", 0x0001, &err) == 0
+            // An inline deny-all profile: the named "pure-computation" profile is killed on apply on current macOS.
+            sandboxed = unsafeBitCast(sym, to: SandboxInit.self)("(version 1)(deny default)(allow sysctl-read)", 0, &err) == 0
         }
         let out = Output()
         out.send(.started(uid: getuid(), sandboxed: sandboxed))

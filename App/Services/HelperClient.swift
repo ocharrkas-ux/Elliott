@@ -57,6 +57,17 @@ final class HelperClient: ObservableObject {
         status = service.status
     }
 
+    /// Unregisters and registers again, so launchd starts the helper binary currently in the app bundle.
+    /// Rules aren't cleared: pf keeps enforcing them meanwhile, and the new helper reloads the saved policy at start.
+    func reinstall() async {
+        try? await service.unregister()
+        connection?.invalidate()
+        connection = nil
+        connected = false
+        try? await Task.sleep(for: .seconds(2))
+        install()
+    }
+
     private func connect() async {
         if connection == nil {
             let c = NSXPCConnection(machServiceName: ElliottIDs.helperLabel, options: .privileged)
@@ -75,8 +86,9 @@ final class HelperClient: ObservableObject {
             guard let proxy else { return once.resume(false) }
             proxy.ping { _ in once.resume(true) }
         }
-        if ok && !connected { onConnected?() }
-        connected = ok
+        let wasConnected = connected
+        connected = ok                           // before onConnected: its policy push checks `connected`
+        if ok && !wasConnected { onConnected?() }
     }
 
     var onConnected: (() -> Void)?
