@@ -39,6 +39,23 @@ targets:
         INFOPLIST_FILE: App/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_ENTITLEMENTS: App/Elliott.entitlements
+        # Build number: generated into a header before the Info.plist is processed (so it's signed with it).
+        INFOPLIST_PREPROCESS: YES
+        INFOPLIST_PREFIX_HEADER: $(DERIVED_FILE_DIR)/ElliottBuild.h
+        INFOPLIST_OTHER_PREPROCESSOR_FLAGS: -traditional
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    preBuildScripts:
+      # Every build gets a newer CFBundleVersion (UTC date.time), so nodes can tell which client is newer and pull
+      # updates from each other. The commit it was built from is recorded alongside.
+      - name: Stamp build number
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/ElliottBuild.h
+        script: |
+          mkdir -p "$DERIVED_FILE_DIR"
+          commit=$(git -C "$SRCROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)
+          git -C "$SRCROOT" diff --quiet HEAD 2>/dev/null || commit="$commit-dirty"
+          printf '#define ELLIOTT_BUILD %s\n#define ELLIOTT_COMMIT %s\n' "$(date -u +%Y%m%d.%H%M%S)" "$commit" > "$DERIVED_FILE_DIR/ElliottBuild.h"
 
   ElliottHelper:
     type: tool

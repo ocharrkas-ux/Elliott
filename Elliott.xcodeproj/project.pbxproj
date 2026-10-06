@@ -591,6 +591,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 65900BABBEBF5F8A7ADD9042 /* Build configuration list for PBXNativeTarget "Elliott" */;
 			buildPhases = (
+				58995250CDB2038F194112AB /* Stamp build number */,
 				C0B3C5EAC1015593AF31814C /* Sources */,
 				BCE102123B0CA54EBAC8B787 /* Resources */,
 				C44C072F24811F0482E609B0 /* CopyFiles */,
@@ -729,6 +730,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		58995250CDB2038F194112AB /* Stamp build number */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Stamp build number";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/ElliottBuild.h",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "mkdir -p \"$DERIVED_FILE_DIR\"\ncommit=$(git -C \"$SRCROOT\" rev-parse --short HEAD 2>/dev/null || echo unknown)\ngit -C \"$SRCROOT\" diff --quiet HEAD 2>/dev/null || commit=\"$commit-dirty\"\nprintf '#define ELLIOTT_BUILD %s\\n#define ELLIOTT_COMMIT %s\\n' \"$(date -u +%Y%m%d.%H%M%S)\" \"$commit\" > \"$DERIVED_FILE_DIR/ElliottBuild.h\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		62A38E1FC85716A50DA4CB34 /* Sources */ = {
@@ -1086,8 +1110,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/Elliott.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_OTHER_PREPROCESSOR_FLAGS = "-traditional";
+				INFOPLIST_PREFIX_HEADER = "$(DERIVED_FILE_DIR)/ElliottBuild.h";
+				INFOPLIST_PREPROCESS = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1122,8 +1150,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/Elliott.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_OTHER_PREPROCESSOR_FLAGS = "-traditional";
+				INFOPLIST_PREFIX_HEADER = "$(DERIVED_FILE_DIR)/ElliottBuild.h";
+				INFOPLIST_PREPROCESS = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

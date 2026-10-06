@@ -74,6 +74,9 @@ struct NodeStatus: Codable, Hashable, Sendable {
     var llmModels: [String]      // models the node's LLM server offers (empty = no local LLM)
     var llmQueue: Int
     var acceptsLLMWork: Bool
+    /// Elliott build this node runs (CFBundleVersion), so outdated nodes can be spotted.
+    var appBuild: String? = nil
+    var appCommit: String? = nil
 }
 
 enum MeshMessage: Codable, Sendable {

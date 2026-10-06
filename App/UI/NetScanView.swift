@@ -150,12 +150,14 @@ struct HostsTable: View {
 
 struct NetworkHostsView: View {
     @EnvironmentObject var model: AppModel
+    @AppStorage(NodeFilter.key) private var node = ""
     var body: some View {
         Group {
             if model.mesh?.isMember == true {
-                let reports = model.networkReports
+                let reports = model.networkReports(for: node)
                 HostsTable(hosts: reports.flatMap { $0.scanHosts ?? [] },
                            findings: reports.flatMap(\.vulnFindings), showNode: true)
+                    .toolbar { ToolbarItem { NodeFilterPicker() } }
             } else {
                 NotInNetworkPlaceholder()
             }

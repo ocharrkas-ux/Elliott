@@ -1415,4 +1415,12 @@ final class ElliottTests: XCTestCase {
         XCTAssertEqual(c.display, "openssl@3 3.5.1 (old copy, not in use)")
         try? FileManager.default.removeItem(atPath: prefix)
     }
+
+    func testBuildNumbersOrderByTime() {
+        XCTAssertEqual(Version.compare("20261006.002216", "20261005.235959"), .orderedDescending, "after midnight")
+        XCTAssertEqual(Version.compare("20270101.000001", "20261231.235959"), .orderedDescending, "new year")
+        XCTAssertEqual(Version.compare("20261006.002216", "20261006.002216"), .orderedSame)
+        XCTAssertEqual(Version.compare("1", "20261006.002216"), .orderedAscending, "pre-tracking builds are older")
+        XCTAssertNotEqual(AppModel.appBuild, "ELLIOTT_BUILD", "the build number is substituted at build time")
+    }
 }

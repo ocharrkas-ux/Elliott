@@ -986,6 +986,7 @@ final class AppModel: ObservableObject {
         let node = MeshNode(identity: identity, membership: savedMembership, sharedRules: savedSharedRules)
         node.applyRemoteRules = { [weak self] in self?.applyShared($0) }
         node.localReport = { [weak self] in self?.localReport() ?? NodeReport(node: identity.info, hostname: "", os: "", enforcement: "", lockdown: false, profiles: [], findings: [], vulnFindings: [], componentCount: 0, decisionCount: 0) }
+        node.onStatus = { [weak self] id, s in self?.peerStatus(id, s) }
         node.localStatus = { [weak self] in self?.localStatus() ?? NodeStatus(node: identity.id, chip: "", memoryGB: 0, cpuCores: 0, cpuLoad: 0, llmModels: [], llmQueue: 0, acceptsLLMWork: false) }
         node.runLLM = { [weak self] system, user, schema in
             guard let self else { throw URLError(.cancelled) }
@@ -1074,7 +1075,79 @@ final class AppModel: ObservableObject {
                    cpuLoad: Hardware.loadPerCore, gpuUtilization: Hardware.gpuUtilization(),
                    llmModels: settings.llm.enabled && llmServerIssue == nil ? localModels : [],
                    llmQueue: analysisQueue.count + suggestQueue.count + triageQueue.count + reachQueue.count,
-                   acceptsLLMWork: settings.mesh.shareLLM && settings.llm.enabled && !settings.llm.lowPower && llmServerIssue == nil)
+                   acceptsLLMWork: settings.mesh.shareLLM && settings.llm.enabled && !settings.llm.lowPower && llmServerIssue == nil,
+                   appBuild: Self.appBuild, appCommit: Self.appCommit)
+    }
+
+    // MARK: Client versions
+
+    nonisolated static var appBuild: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0" }
+    nonisolated static var appCommit: String? { Bundle.main.object(forInfoDictionaryKey: "ElliottCommit") as? String }
+
+    /// The newest build any node (including this Mac) is known to run.
+    var newestKnownBuild: String? {
+        ([Self.appBuild] + (mesh?.statuses.values.compactMap(\.appBuild) ?? []))
+            .max { Version.compare($0, $1) == .orderedAscending }
+    }
+
+    struct NewerClient: Equatable { var build: String; var commit: String?; var node: String }
+
+    /// The newest Elliott build another node runs, if newer than this Mac's.
+    @Published private(set) var newerClient: NewerClient?
+
+    /// Each member reports its build: when one is newer, offer (once per build) to update this Mac. Updating is
+    /// manual: export an installer on the newer Mac and install it here. Nothing is transferred automatically.
+    private func peerStatus(_ node: UUID, _ s: NodeStatus) {
+        guard let build = s.appBuild, Version.compare(build, Self.appBuild) == .orderedDescending,
+              newerClient.map({ Version.compare(build, $0.build) == .orderedDescending }) ?? true else { return }
+        let name = mesh?.members[node]?.name ?? "Another node"
+        newerClient = NewerClient(build: build, commit: s.appCommit, node: name)
+        let key = "update.prompted.\(build)"
+        guard !Self.isTestHost, !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        Task { @MainActor in
+            NSApp.activate()
+            guard Confirm.run(title: "There's an updated version of Elliott available",
+                              message: "\(name) is running a newer Elliott (build \(build)) than this Mac (build \(Self.appBuild)). Would you like to update?",
+                              action: "Update…") else { return }
+            self.section = .netOverview
+            self.scope = .network
+            self.showUpdateSteps()
+        }
+    }
+
+    func showUpdateSteps() {
+        guard let n = newerClient else { return }
+        let alert = NSAlert()
+        alert.messageText = "Update Elliott from \(n.node)"
+        alert.informativeText = """
+        1. On \(n.node), open Elliott → Your Network and click Export Installer. It saves Elliott-\(n.build).zip to Downloads.
+        2. Send it to this Mac (AirDrop works) and double-click it to unzip.
+        3. Quit Elliott here, drag the new Elliott.app into Applications and choose Replace.
+        4. Open Elliott. If macOS says it can't be opened, run this once in Terminal:
+           xattr -dr com.apple.quarantine /Applications/Elliott.app
+        Your rules, history and settings are kept. The helper updates itself.
+        """
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    /// Zips this Mac's Elliott.app into Downloads, to install on another Mac by hand.
+    func exportInstaller() async -> URL? {
+        let app = Bundle.main.bundleURL
+        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+        let zip = downloads.appendingPathComponent("Elliott-\(Self.appBuild).zip")
+        let ok = await Task.detached { () -> Bool in
+            try? FileManager.default.removeItem(at: zip)
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            p.arguments = ["-c", "-k", "--norsrc", "--noextattr", "--keepParent", app.path, zip.path]
+            guard (try? p.run()) != nil else { return false }
+            p.waitUntilExit()
+            return p.terminationStatus == 0
+        }.value
+        if ok { NSWorkspace.shared.activateFileViewerSelecting([zip]) }
+        return ok ? zip : nil
     }
 
     /// A member asked this Mac to run an LLM job.

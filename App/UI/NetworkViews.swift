@@ -13,6 +13,41 @@ extension AppModel {
 }
 
 /// Shown on every network view until this Mac belongs to a network.
+/// Which device the network-wide tables show ("" = all devices). Stored once, so a device picked on one tab
+/// stays picked on the others.
+enum NodeFilter {
+    static let key = "network.nodeFilter"
+}
+
+extension AppModel {
+    /// Reports for the chosen device (all of them when none is chosen, or the chosen one is gone).
+    func networkReports(for node: String) -> [NodeReport] {
+        let all = networkReports
+        guard !node.isEmpty, all.contains(where: { $0.node.id.uuidString == node }) else { return all }
+        return all.filter { $0.node.id.uuidString == node }
+    }
+}
+
+struct NodeFilterPicker: View {
+    @EnvironmentObject var model: AppModel
+    @AppStorage(NodeFilter.key) private var node = ""
+
+    var body: some View {
+        let reports = model.networkReports.sorted { $0.node.name.localizedCaseInsensitiveCompare($1.node.name) == .orderedAscending }
+        let known = reports.contains { $0.node.id.uuidString == node }
+        Picker("Device", selection: Binding(get: { known ? node : "" }, set: { node = $0 })) {
+            Text("All devices").tag("")
+            Divider()
+            ForEach(reports, id: \.node.id) { r in
+                let isSelf = r.node.id == model.mesh?.identity.id
+                Text(r.node.name + (isSelf ? " (this Mac)" : model.isOnline(r.node.id) ? "" : " (offline)")).tag(r.node.id.uuidString)
+            }
+        }
+        .pickerStyle(.menu)
+        .help("Show one device, or every device in the network")
+    }
+}
+
 struct NotInNetworkPlaceholder: View {
     @EnvironmentObject var model: AppModel
     var body: some View {
@@ -53,6 +88,8 @@ struct NetworkOverview: View {
         .navigationTitle("overview")
     }
 
+    @State private var exporting = false
+
     private func header(_ mesh: MeshNode) -> some View {
         let reports = model.networkReports
         let serious = reports.reduce(0) { $0 + $1.findings.filter { $0.status == .open && $0.severity >= .high }.count }
@@ -71,6 +108,28 @@ struct NetworkOverview: View {
             }
             Text("Post-quantum encrypted links (X-Wing ML-KEM-768 + X25519, ML-DSA-65 signatures, AES-256-GCM). Rules and decisions are shared; every device enforces them.")
                 .font(.caption).foregroundStyle(Theme.dim)
+            if let n = model.newerClient {
+                HStack {
+                    Image(systemName: "arrow.down.circle.fill").foregroundStyle(Theme.amber)
+                    Text("There's an updated version of Elliott available: \(n.node) runs build \(n.build), this Mac runs \(AppModel.appBuild).")
+                    Spacer()
+                    Button("How to Update…") { model.showUpdateSteps() }
+                }
+                .font(.callout)
+                .padding(8)
+                .background(Theme.amber.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+            }
+            HStack {
+                Text("This Mac: Elliott build \(AppModel.appBuild)\(AppModel.appCommit.map { " (\($0))" } ?? "")")
+                    .font(.caption.monospaced()).foregroundStyle(Theme.dim)
+                Spacer()
+                Button(exporting ? "Exporting…" : "Export Installer") {
+                    exporting = true
+                    Task { _ = await model.exportInstaller(); exporting = false }
+                }
+                .disabled(exporting)
+                .help("Save this Mac's Elliott as a zip in Downloads, to install on an outdated Mac")
+            }
         }
     }
 
@@ -84,6 +143,7 @@ struct NetworkOverview: View {
 
 struct NodeCard: View {
     @EnvironmentObject var model: AppModel
+    @AppStorage(NodeFilter.key) private var nodeFilter = ""
     var report: NodeReport
 
     var body: some View {
@@ -104,6 +164,16 @@ struct NodeCard: View {
                 }
                 Text("\(report.enforcement) · \(report.os.replacingOccurrences(of: "Version ", with: "macOS "))")
                     .font(.caption).foregroundStyle(Theme.dim)
+                if let b = isSelf ? AppModel.appBuild : status?.appBuild {
+                    HStack(spacing: 6) {
+                        Text("Elliott build \(b)").font(.caption.monospaced()).foregroundStyle(Theme.dim)
+                        if let newest = model.newestKnownBuild, Version.compare(b, newest) == .orderedAscending {
+                            Text("outdated").font(.caption2.weight(.bold)).foregroundStyle(Theme.amber)
+                        }
+                    }
+                } else if status != nil {
+                    Text("Elliott build: older than build tracking").font(.caption).foregroundStyle(Theme.amber)
+                }
                 HStack(spacing: 14) {
                     metric("\(report.profiles.count)", "connections")
                     metric("\(openHigh)", "high+ alerts", openHigh > 0 ? Theme.red : nil)
@@ -125,7 +195,14 @@ struct NodeCard: View {
                         Label("Running Elliott's LLM work", systemImage: "cpu.fill").font(.caption).foregroundStyle(Theme.green)
                     }
                 }
-                Text("updated \(report.generated.formatted(.relative(presentation: .named)))").font(.caption2).foregroundStyle(Theme.dim)
+                HStack {
+                    Text("updated \(report.generated.formatted(.relative(presentation: .named)))").font(.caption2).foregroundStyle(Theme.dim)
+                    Spacer()
+                    // Jump to the network tables, showing only this device.
+                    Button("Connections") { nodeFilter = id.uuidString; model.section = .netConnections }
+                    Button("Detections") { nodeFilter = id.uuidString; model.section = .netDetections }
+                }
+                .buttonStyle(.link).font(.caption)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(4)
@@ -301,6 +378,7 @@ struct NodeConnectionRow: Identifiable {
 
 struct NetworkConnectionsView: View {
     @EnvironmentObject var model: AppModel
+    @AppStorage(NodeFilter.key) private var node = ""
     @State private var search = ""
     @State private var sortOrder = [KeyPathComparator(\NodeConnectionRow.lastSeen, order: .reverse)]
 
@@ -308,7 +386,7 @@ struct NetworkConnectionsView: View {
         Group {
             if model.mesh?.isMember == true {
                 let q = search.lowercased()
-                let rows = model.networkReports.flatMap { r in r.profiles.map { NodeConnectionRow(node: r.node.name, profile: $0, rule: model.decision(for: $0)) } }
+                let rows = model.networkReports(for: node).flatMap { r in r.profiles.map { NodeConnectionRow(node: r.node.name, profile: $0, rule: model.decision(for: $0)) } }
                     .filter { q.isEmpty || "\($0.node) \($0.app) \($0.destination) \($0.profile.analysis?.description ?? "")".lowercased().contains(q) }
                     .sorted(using: sortOrder)
                 Table(rows, sortOrder: $sortOrder) {
@@ -322,6 +400,7 @@ struct NetworkConnectionsView: View {
                     TableColumn("Last", value: \.lastSeen) { Text(Ago.text($0.lastSeen)).foregroundStyle(Theme.dim) }.width(90)
                 }
                 .searchable(text: $search, placement: .toolbar, prompt: "Device, app, destination")
+                .toolbar { ToolbarItem { NodeFilterPicker() } }
             } else {
                 NotInNetworkPlaceholder()
             }
@@ -340,13 +419,14 @@ struct NodeFindingRow: Identifiable {
 
 struct NetworkDetectionsView: View {
     @EnvironmentObject var model: AppModel
+    @AppStorage(NodeFilter.key) private var node = ""
     @State private var sortOrder = [KeyPathComparator(\NodeFindingRow.severity, order: .reverse)]
     @State private var openOnly = true
 
     var body: some View {
         Group {
             if model.mesh?.isMember == true {
-                let rows = model.networkReports.flatMap { r in r.findings.map { NodeFindingRow(node: r.node.name, f: $0) } }
+                let rows = model.networkReports(for: node).flatMap { r in r.findings.map { NodeFindingRow(node: r.node.name, f: $0) } }
                     .filter { !openOnly || $0.f.status == .open }.sorted(using: sortOrder)
                 VStack(spacing: 0) {
                     Toggle("Open only", isOn: $openOnly).padding(.horizontal, 16).padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .trailing)
@@ -359,6 +439,7 @@ struct NetworkDetectionsView: View {
                         TableColumn("Last", value: \.lastSeen) { Text(Ago.text($0.lastSeen)).foregroundStyle(Theme.dim) }.width(90)
                     }
                 }
+                .toolbar { ToolbarItem { NodeFilterPicker() } }
             } else {
                 NotInNetworkPlaceholder()
             }
@@ -376,12 +457,13 @@ struct NodeVulnRow: Identifiable {
 
 struct NetworkVulnsView: View {
     @EnvironmentObject var model: AppModel
+    @AppStorage(NodeFilter.key) private var node = ""
     @State private var sortOrder = [KeyPathComparator(\NodeVulnRow.priority, order: .reverse)]
 
     var body: some View {
         Group {
             if model.mesh?.isMember == true {
-                let rows = model.networkReports.flatMap { r in r.vulnFindings.map { NodeVulnRow(node: r.node.name, f: $0) } }.sorted(using: sortOrder)
+                let rows = model.networkReports(for: node).flatMap { r in r.vulnFindings.map { NodeVulnRow(node: r.node.name, f: $0) } }.sorted(using: sortOrder)
                 Table(rows, sortOrder: $sortOrder) {
                     TableColumn("Device") { Text($0.node).fontWeight(.semibold) }.width(min: 90, ideal: 130)
                     TableColumn("Priority", value: \.priority) { r in
@@ -400,6 +482,7 @@ struct NetworkVulnsView: View {
                     }.width(min: 140, ideal: 190)
                     TableColumn("Summary") { Text($0.f.vuln.summary).lineLimit(2).foregroundStyle(.secondary) }
                 }
+                .toolbar { ToolbarItem { NodeFilterPicker() } }
             } else {
                 NotInNetworkPlaceholder()
             }

@@ -67,6 +67,8 @@ final class MeshNode: ObservableObject {
     var runLLM: ((String, String, Data) async throws -> String)?
     var onChange: (() -> Void)?
     var onJoinRequest: ((NodeInfo, String) -> Void)?
+    /// A member's status arrived (its build number shows whether this Mac is out of date).
+    var onStatus: ((UUID, NodeStatus) -> Void)?
     /// This Mac just created or joined a network: time to publish its existing rules.
     var onMembershipEstablished: (() -> Void)?
 
@@ -390,6 +392,7 @@ final class MeshNode: ObservableObject {
         case .status(let s):
             guard s.node == remote.id else { return }
             statuses[remote.id] = s
+            onStatus?(remote.id, s)
         case .llmRequest(let id, let system, let user, let schema):
             Task { @MainActor in
                 do {
