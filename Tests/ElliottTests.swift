@@ -1,4 +1,5 @@
 import CryptoKit
+import SQLite3
 import XCTest
 @testable import Elliott
 
@@ -1422,5 +1423,191 @@ final class ElliottTests: XCTestCase {
         XCTAssertEqual(Version.compare("20261006.002216", "20261006.002216"), .orderedSame)
         XCTAssertEqual(Version.compare("1", "20261006.002216"), .orderedAscending, "pre-tracking builds are older")
         XCTAssertNotEqual(AppModel.appBuild, "ELLIOTT_BUILD", "the build number is substituted at build time")
+    }
+
+    // MARK: Detection depth (TLS, DNS, behavior)
+
+    func testJA3AndJA4MatchReferenceImplementation() throws {
+        let url = Bundle(for: Self.self).url(forResource: "clienthello-api.github.com", withExtension: "hex")
+            ?? URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/clienthello-api.github.com.hex")
+        let hex = try String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        let bytes = stride(from: 0, to: hex.count, by: 2).map { i -> UInt8 in
+            UInt8(hex[hex.index(hex.startIndex, offsetBy: i)..<hex.index(hex.startIndex, offsetBy: i + 2)], radix: 16)!
+        }
+        let hello = try XCTUnwrap(ClientHello.parse(bytes))
+        XCTAssertEqual(hello.serverName, "api.github.com")
+        // Computed independently (Python, from the JA3 and FoxIO JA4 specs) on the same bytes.
+        XCTAssertEqual(hello.ja3, "f21f8e6cf70d5980ecfe9fa2e0ef401c")
+        XCTAssertEqual(hello.ja4, "t13d171100_ab0a1bf427ad_8e6e362c5eac")
+        XCTAssertTrue(ClientHello.isGREASE(0x2A2A)); XCTAssertFalse(ClientHello.isGREASE(0x1301))
+        XCTAssertNil(ClientHello.parse(Array(bytes.prefix(60))), "truncated record")
+    }
+
+    func testDNSQueryOutcomeParsing() {
+        // Response: id 0x1234, flags 0x8183 (NXDOMAIN), 1 question, 0 answers; "abc.example.com" type A.
+        var b: [UInt8] = [0x12, 0x34, 0x81, 0x83, 0, 1, 0, 0, 0, 0, 0, 0]
+        for label in ["abc", "example", "com"] { b.append(UInt8(label.count)); b += Array(label.utf8) }
+        b += [0, 0, 1, 0, 1]
+        let q = DNSMatcher.queryInfo(b[...], name: "abc.example.com", time: 5)
+        XCTAssertEqual(q, DNSQueryObservation(name: "abc.example.com", type: 1, rcode: 3, answers: 0, time: 5))
+    }
+
+    func testDomainRandomness() {
+        XCTAssertLessThan(DomainShape.randomness("google"), 0.6)
+        XCTAssertLessThan(DomainShape.randomness("wikipedia"), 0.6)
+        XCTAssertLessThan(DomainShape.randomness("cloudflare"), 0.6)
+        XCTAssertGreaterThanOrEqual(DomainShape.randomness("xkqjzvbwptmr"), 0.6)
+        XCTAssertGreaterThanOrEqual(DomainShape.randomness("qz7x3kdp9wfhjt"), 0.6)
+    }
+
+    func testDNSAnalyticsFlagsGenerationBurstsAndTunnelling() {
+        var a = DNSAnalytics()
+        var alert: DNSAnalytics.Alert?
+        let random = ["xkqjzvbwpt", "qzwrtpkmnx", "bcdfghjklm", "zxcvbnmqwr", "pqrstvwxzb", "mnbvcxzlkj", "hgfdsqwrtp", "lkjhgfdsxz"]
+        for (i, d) in random.enumerated() {
+            alert = a.feed(DNSQueryObservation(name: "\(d).com", type: 1, rcode: 3, answers: 0, time: 100 + Double(i))) ?? alert
+        }
+        if case .generatedDomains(let n, _)? = alert { XCTAssertEqual(n, 8) } else { XCTFail("expected a DGA alert") }
+        // Normal NXDOMAINs (typos of real names) don't count.
+        var b = DNSAnalytics()
+        for i in 0..<20 { XCTAssertNil(b.feed(DNSQueryObservation(name: "gooogle\(i).com", type: 1, rcode: 3, answers: 0, time: Double(i)))) }
+        // Tunnelling: 60+ long unique subdomains under one domain.
+        var c = DNSAnalytics()
+        var tunnel: DNSAnalytics.Alert?
+        for i in 0..<70 {
+            let sub = String(repeating: "a", count: 30) + String(i)
+            tunnel = c.feed(DNSQueryObservation(name: "\(sub).data.exfil.com", type: 16, rcode: 0, answers: 1, time: Double(i))) ?? tunnel
+        }
+        if case .tunnelling(let d, _, _, _)? = tunnel { XCTAssertEqual(d, "exfil.com") } else { XCTFail("expected a tunnelling alert") }
+    }
+
+    func testBeaconDetection() {
+        var b = BeaconDetector()
+        var found: BeaconDetector.Beacon?
+        for i in 0..<10 { found = b.record(app: "/tmp/implant", destination: "evil.example", at: 1000 + Double(i) * 60 + (i % 2 == 0 ? 0.5 : -0.5)) ?? found }
+        XCTAssertEqual(found?.count, 8, "reported as soon as it qualifies")
+        XCTAssertEqual(found.map { Int($0.interval.rounded()) }, 60)
+        // Irregular, human-driven connections aren't beacons.
+        var h = BeaconDetector()
+        let times: [Double] = [0, 5, 300, 320, 2000, 2100, 2105, 5000, 9000, 9010]
+        XCTAssertNil(times.compactMap { h.record(app: "Safari", destination: "news.example", at: $0) }.first)
+        // Too fast (a burst) isn't a beacon either.
+        XCTAssertNil(BeaconDetector.analyze((0..<10).map { Double($0) * 2 }))
+    }
+
+    func testVolumeBaselineFlagsOnlyRealSpikes() {
+        var v = VolumeBaseline()
+        let start = 1_700_000_000.0
+        for h in 0..<30 { XCTAssertNil(v.add(app: "/App/Sync", bytes: 10_000_000, at: start + Double(h) * 3600)) }
+        XCTAssertNil(v.add(app: "/App/Sync", bytes: 30_000_000, at: start + 30 * 3600), "3× usual but small")
+        let spike = v.add(app: "/App/Sync", bytes: 900_000_000, at: start + 30 * 3600 + 60)
+        XCTAssertNotNil(spike)
+        XCTAssertNil(v.add(app: "/App/Sync", bytes: 900_000_000, at: start + 30 * 3600 + 120), "once per hour")
+    }
+
+    func testLANWatchAndCorrelation() {
+        let fresh = LANWatch.newDevices(current: ["192.168.1.9": "aa:bb:cc:dd:ee:ff", "192.168.1.1": "11:22:33:44:55:66",
+                                                  "192.168.1.255": "ff:ff:ff:ff:ff:ff"], known: ["11:22:33:44:55:66"])
+        XCTAssertEqual(fresh.map(\.mac), ["aa:bb:cc:dd:ee:ff"])
+        XCTAssertTrue(LANWatch.isRandomized("aa:bb:cc:dd:ee:ff"))   // 0xaa has the local bit
+        XCTAssertFalse(LANWatch.isRandomized("00:1b:63:00:00:01"))
+
+        func report(_ name: String, bad: String?, ports: [Int] = [], peerIP: String = "") -> NodeReport {
+            var profiles: [Profile] = []
+            if let bad {
+                var p = Profile(event: event(host: nil, ip: bad))
+                p.intel = IntelSummary(reputation: .knownBad, hits: [])
+                profiles.append(p)
+            }
+            for port in ports { profiles.append(Profile(event: event(host: nil, ip: peerIP, port: port))) }
+            return NodeReport(node: NodeInfo(id: UUID(), name: name, publicKey: Data()), hostname: name, os: "", enforcement: "",
+                              lockdown: false, profiles: profiles, findings: [], vulnFindings: [], componentCount: 0, decisionCount: 0)
+        }
+        let a = report("mac-a", bad: "6.6.6.6", ports: Array(20..<35), peerIP: "192.168.1.20")
+        let b = report("mac-b", bad: "6.6.6.6")
+        let signals = Correlator.signals([a, b], addresses: [b.node.id: ["192.168.1.20"]])
+        XCTAssertTrue(signals.contains { $0.key == "corr.bad|6.6.6.6" && $0.devices == ["mac-a", "mac-b"] })
+        XCTAssertTrue(signals.contains { $0.key == "corr.scan|mac-a|mac-b" })
+        XCTAssertTrue(Correlator.signals([b], addresses: [:]).isEmpty, "one device alone isn't a correlation")
+    }
+
+    func testTLSFingerprintList() {
+        var l = TLSFingerprintList()
+        l.load(csv: "# comment\nb386946a5a44d1ddcc843bc75336dfce,2017-07-14,2019-07-27,Dridex\nbad,line\n")
+        XCTAssertEqual(l.count, 1)
+        XCTAssertNotNil(l.reason(ja3: "B386946A5A44D1DDCC843BC75336DFCE", ja4: nil, custom: []))
+        XCTAssertNil(l.reason(ja3: "f21f8e6cf70d5980ecfe9fa2e0ef401c", ja4: nil, custom: []))
+        XCTAssertNotNil(l.reason(ja3: nil, ja4: "t13d171100_ab0a1bf427ad_8e6e362c5eac", custom: ["t13d171100_ab0a1bf427ad_8e6e362c5eac"]))
+    }
+
+    func testFileScannerFlagsKnownMalwareHash() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("fs-\(UUID())")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("payload.sh")
+        try "#!/bin/sh\necho pwned \(UUID())\n".write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
+        XCTAssertTrue(FileScanner.isCandidate(file.path))
+        XCTAssertTrue(FileScanner.isMachO("/bin/ls"))
+        XCTAssertEqual(FileScanner.signer("/bin/ls"), "Apple")
+        XCTAssertEqual(FileScanner.signer(file.path), "unsigned")
+        let sha = try XCTUnwrap(FileScanner.sha256(file.path))
+        let scanner = FileScanner()
+        scanner.loadRecentMalware("# header\n\(sha)\nnot-a-hash\n")
+        XCTAssertEqual(scanner.knownBadCount, 1)
+        // Only the temp folder: the real Downloads/Desktop are privacy-protected and would prompt.
+        let found = await scanner.scan(FileScanner.Options(extraPaths: [file.path], roots: [dir.path]))
+        XCTAssertEqual(found.first?.severity, .critical)
+        XCTAssertEqual(found.first?.sha256, sha)
+        try? FileManager.default.removeItem(at: dir)
+    }
+
+    // MARK: Logging, formats, posture
+
+    func testEventLogSearchAndTamperEvidence() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("ev-\(UUID()).sqlite")
+        let key = SymmetricKey(size: .bits256)
+        let log = EventLog(path: url, key: key)
+        log.append([
+            SecurityEvent(time: Date(), kind: .decision, severity: .info, node: "mac", app: "curl", summary: "Allowed curl → example.com:443", actor: "you"),
+            SecurityEvent(time: Date(), kind: .detection, severity: .high, node: "mac", app: "implant", summary: "Regular check-ins to evil.example"),
+            SecurityEvent(time: Date(), kind: .connection, severity: .info, node: "mac", app: "Safari", summary: "Safari → news.example:443"),
+        ])
+        log.flushNow()
+        XCTAssertEqual(log.count, 3)
+        XCTAssertEqual(log.search(EventLog.Query(text: "evil")).map(\.app), ["implant"])
+        XCTAssertEqual(log.search(EventLog.Query(kinds: [.decision])).first?.actor, "you")
+        XCTAssertEqual(log.search(EventLog.Query(minSeverity: .high)).count, 1)
+        XCTAssertEqual(log.search(EventLog.Query(text: "\" OR 1=1 --")).count, 0, "query text can't inject")
+        XCTAssertNil(log.verify().brokenAt)
+
+        // Someone edits the middle row directly in the database.
+        var db: OpaquePointer?
+        sqlite3_open(url.path, &db)
+        sqlite3_exec(db, "UPDATE events SET summary = 'nothing to see' WHERE id = 2", nil, nil, nil)
+        sqlite3_close(db)
+        XCTAssertEqual(EventLog(path: url, key: key).verify().brokenAt, 2)
+    }
+
+    func testEventFormats() {
+        let e = SecurityEvent(time: Date(timeIntervalSince1970: 1_700_000_000), kind: .detection, severity: .critical, node: "my mac",
+                              app: "a|b", summary: "x=y | z", detail: ["path": "/tmp/a=b"])
+        let cef = EventFormat.cef(e, build: "1")
+        XCTAssertTrue(cef.hasPrefix("CEF:0|Elliott|Elliott|1|detection|x=y \\| z|10|"))
+        XCTAssertTrue(cef.contains("cspath=/tmp/a\\=b"))
+        XCTAssertTrue(cef.contains("sproc=a|b"), "pipes only need escaping in the header")
+        XCTAssertTrue(EventFormat.syslog(e, body: "m").hasPrefix("<106>1 2023-11-14T22:13:20Z my-mac Elliott - detection - "))
+    }
+
+    func testPostureScoreAndRiskyGrants() {
+        var r = PostureReport()
+        r.checks = [PostureCheck(id: "a", title: "", area: "", status: .pass, detail: "", weight: 3),
+                    PostureCheck(id: "b", title: "", area: "", status: .fail, detail: "", weight: 1),
+                    PostureCheck(id: "c", title: "", area: "", status: .unknown, detail: "", weight: 5)]
+        XCTAssertEqual(r.score, 75, "unknown checks don't count")
+        let risky = PrivacyGrant(service: "kTCCServiceScreenCapture", client: "/tmp/x", path: "/tmp/x", signer: "ad-hoc", allowed: true, systemWide: false)
+        let fine = PrivacyGrant(service: "kTCCServiceScreenCapture", client: "us.zoom.xos", path: "/Applications/zoom.us.app", signer: "Developer ID Application: Zoom", allowed: true, systemWide: false)
+        let mild = PrivacyGrant(service: "kTCCServicePhotos", client: "/tmp/x", path: nil, signer: "missing", allowed: true, systemWide: false)
+        XCTAssertTrue(risky.risky); XCTAssertFalse(fine.risky); XCTAssertFalse(mild.risky)
+        XCTAssertEqual(risky.label, "Screen Recording")
     }
 }

@@ -12,6 +12,10 @@ final class PassiveMonitor: @unchecked Sendable {
     /// Seconds between polls; shortened during packet-filter lockdown so held handshakes are noticed quickly.
     var interval: Duration = .seconds(3)
 
+    /// Bytes each program sent since the previous poll (path → bytes), for outbound-volume baselines.
+    var onBytesSent: (@Sendable ([String: Double]) -> Void)?
+    private var lastSent: [Int32: Double] = [:]
+
     func start(onEvents: @escaping @Sendable ([FlowEvent]) -> Void) {
         guard task == nil else { return }
         task = Task.detached(priority: .utility) { [self] in
@@ -31,7 +35,7 @@ final class PassiveMonitor: @unchecked Sendable {
     private func poll() -> [FlowEvent] {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-        p.arguments = ["-L", "1", "-n", "-x", "-J", "state"]
+        p.arguments = ["-L", "1", "-n", "-x", "-J", "state,bytes_in,bytes_out"]
         let pipe = Pipe()
         p.standardOutput = pipe
         p.standardError = FileHandle.nullDevice
@@ -39,7 +43,9 @@ final class PassiveMonitor: @unchecked Sendable {
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         p.waitUntilExit()
 
-        let snapshot = Self.parse(String(decoding: data, as: UTF8.self))
+        let text = String(decoding: data, as: UTF8.self)
+        let snapshot = Self.parse(text)
+        reportBytes(Self.bytesOut(text))
         var current: Set<String> = []
         var out: [FlowEvent] = []
         for c in snapshot {
@@ -58,6 +64,31 @@ final class PassiveMonitor: @unchecked Sendable {
         seen = current
         firstPoll = false
         return out
+    }
+
+    /// Process lines ("name.pid,,in,out,") → cumulative bytes sent per pid.
+    static func bytesOut(_ text: String) -> [Int32: Double] {
+        var out: [Int32: Double] = [:]
+        for line in text.split(separator: "\n").dropFirst() {
+            let cols = line.split(separator: ",", omittingEmptySubsequences: false)
+            guard cols.count >= 4, let first = cols.first, !first.hasPrefix("tcp"), !first.hasPrefix("udp"),
+                  let dot = first.lastIndex(of: "."), let pid = Int32(first[first.index(after: dot)...]),
+                  let sent = Double(cols[3]) else { continue }
+            out[pid] = sent
+        }
+        return out
+    }
+
+    private func reportBytes(_ totals: [Int32: Double]) {
+        guard let onBytesSent else { lastSent = totals; return }
+        var perApp: [String: Double] = [:]
+        for (pid, total) in totals {
+            // A new or reused pid (counter went down) starts from zero rather than counting its whole history.
+            let delta = lastSent[pid].map { total >= $0 ? total - $0 : 0 } ?? 0
+            if delta > 0, let path = Self.path(for: pid) { perApp[path, default: 0] += delta }
+        }
+        lastSent = totals
+        if !perApp.isEmpty { onBytesSent(perApp) }
     }
 
     struct Conn {

@@ -101,6 +101,8 @@ enum PFRules {
     func stopPcap(id: String, reply: @escaping (Bool) -> Void)
     /// JSON [PcapStatus]: running and finished recordings.
     func pcaps(reply: @escaping (Data) -> Void)
+    /// JSON [String: String]: the local network's IP → MAC table (macOS only shows it to root).
+    func arpTable(reply: @escaping (Data) -> Void)
     /// Deletes a finished capture file in Elliott's captures folder.
     func deletePcap(path: String, reply: @escaping (Bool) -> Void)
 }

@@ -28,6 +28,8 @@ struct Profile: Codable, Identifiable, Hashable {
     var alternativeNames: [String]?
     /// Hostname capture was running since before a connection in this profile started.
     var nameChecked: Bool?
+    /// TLS client fingerprints seen on this connection ("JA4 …", "JA3 …").
+    var tlsFingerprints: [String]?
 
     var processName: String { (processPath as NSString).lastPathComponent }
     /// The app bundle name for helpers inside an .app ("Google Chrome" for "Google Chrome Helper").

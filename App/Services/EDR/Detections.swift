@@ -9,7 +9,13 @@ enum Severity: Int, Codable, Comparable, CaseIterable, Identifiable {
 }
 
 enum FindingCategory: String, Codable, CaseIterable {
-    case process, commandLine = "command line", persistence, posture, network, resource
+    case process, commandLine = "command line", persistence, posture, network, resource, file
+
+    // Reports from newer nodes may carry categories this build doesn't know: show them as network detections
+    // rather than dropping the whole report.
+    init(from decoder: Decoder) throws {
+        self = FindingCategory(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .network
+    }
 }
 
 enum FindingStatus: String, Codable, CaseIterable {

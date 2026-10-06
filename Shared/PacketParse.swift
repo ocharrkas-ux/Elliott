@@ -19,6 +19,18 @@ struct SNIObservation: Codable, Hashable, Sendable {
     var remotePort: Int
     var name: String
     var time: Double
+    /// TLS client fingerprints of the ClientHello (identify the client software, not the user).
+    var ja3: String? = nil
+    var ja4: String? = nil
+}
+
+/// A DNS lookup this Mac made and its outcome (for spotting generated domains and DNS tunnelling).
+struct DNSQueryObservation: Codable, Hashable, Sendable {
+    var name: String
+    var type: Int             // 1 A, 28 AAAA, 16 TXT, 10 NULL, 5 CNAME, 65 HTTPS…
+    var rcode: Int            // 0 NOERROR, 3 NXDOMAIN
+    var answers: Int
+    var time: Double
 }
 
 struct NameBatch: Codable, Sendable {
@@ -30,6 +42,7 @@ struct NameBatch: Codable, Sendable {
     var cursor: Double = 0    // pass back to get only newer observations
     /// DNS answers that matched no query from this Mac (possible spoofing); ignored.
     var unsolicitedDNS: Int?
+    var queries: [DNSQueryObservation]? = nil
     /// The packet-parsing process runs without root, and inside a sandbox.
     var privilegesDropped: Bool?
     var sandboxed: Bool?
@@ -192,7 +205,18 @@ struct DNSMatcher {
             unsolicited += 1
             return []
         }
+        lastQuery = Self.queryInfo(p.payload, name: h.name, time: q.time)
         return PacketParse.dnsAnswers(p, time: time)
+    }
+
+    /// The outcome of the last matched lookup (set by `observe`).
+    var lastQuery: DNSQueryObservation?
+
+    static func queryInfo(_ payload: ArraySlice<UInt8>, name: String, time: Double) -> DNSQueryObservation? {
+        let b = Array(payload)
+        guard b.count >= 12, let (_, end) = DNSCache.readName(b, 12), end + 2 <= b.count else { return nil }
+        return DNSQueryObservation(name: name, type: Int(b[end]) << 8 | Int(b[end + 1]), rcode: Int(b[3] & 0x0F),
+                                   answers: Int(b[6]) << 8 | Int(b[7]), time: time)
     }
 
     static func header(_ payload: ArraySlice<UInt8>) -> (id: UInt16, response: Bool, name: String)? {
@@ -226,8 +250,17 @@ struct SNIAssembler {
         f.nextSeq = p.tcpSeq &+ UInt32(p.payload.count)
         switch PacketParse.sni(f.bytes) {
         case .name(let n):
+            // Modern ClientHellos (post-quantum key shares) often span two segments: wait for the whole record so the
+            // fingerprint covers every extension, but don't hold the name back for long.
+            let recLen = f.bytes.count >= 5 ? Int(f.bytes[3]) << 8 | Int(f.bytes[4]) : 0
+            if f.bytes.count < 5 + recLen && f.bytes.count <= 16_384 && time - f.started <= 3 {
+                flows[key] = f
+                return nil
+            }
             flows[key] = nil
-            return SNIObservation(localIP: p.src, localPort: p.srcPort, remoteIP: p.dst, remotePort: p.dstPort, name: n, time: f.started)
+            let hello = ClientHello.parse(f.bytes)
+            return SNIObservation(localIP: p.src, localPort: p.srcPort, remoteIP: p.dst, remotePort: p.dstPort, name: n,
+                                  time: f.started, ja3: hello?.ja3, ja4: hello?.ja4)
         case .notTLS:
             flows[key] = nil
         case .needMore:

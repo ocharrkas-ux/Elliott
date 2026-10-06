@@ -209,6 +209,17 @@ final class HelperClient: ObservableObject {
         return data.flatMap { try? JSONDecoder.elliott.decode([PcapStatus].self, from: $0) }
     }
 
+    func arpTable() async -> [String: String]? {
+        guard connected else { return nil }
+        let data: Data? = await withCheckedContinuation { cont in
+            let once = Once<Data?>(cont)
+            let proxy = connection?.remoteObjectProxyWithErrorHandler { _ in once.resume(nil) } as? HelperXPC
+            guard let proxy else { return once.resume(nil) }
+            proxy.arpTable { once.resume($0) }
+        }
+        return data.flatMap { try? JSONDecoder().decode([String: String].self, from: $0) }
+    }
+
     func deletePcap(_ path: String) async -> Bool {
         guard connected else { return false }
         return await withCheckedContinuation { cont in

@@ -204,7 +204,11 @@ enum NetScanner {
     }
 
     /// IP → MAC from the ARP cache (hosts this Mac has recently talked to).
+    /// IP → MAC for the local network, read from the kernel's routing table (what `arp -an` prints); falls back
+    /// to running arp.
     static func arpTable() -> [String: String] {
+        let direct = ARPTable.read()
+        if !direct.isEmpty { return direct }
         var out: [String: String] = [:]
         for line in Inventory.run("/usr/sbin/arp", ["-an"]).split(separator: "\n") {
             if let m = line.firstMatch(of: /\((\d+\.\d+\.\d+\.\d+)\) at ([0-9a-f:]{11,17})/) { out[String(m.1)] = String(m.2) }
@@ -246,10 +250,11 @@ enum NetScanner {
     }
 
     /// Scans targets: discovery on a few ports (+ ARP), then the full port list on live hosts.
-    static func scan(targets: [String], ports: [Int], rate: Int, node: String,
+    static func scan(targets: [String], ports: [Int], rate: Int, node: String, arp known: [String: String]? = nil,
                      progress: @escaping @Sendable (String, Double) -> Void) -> [ScannedHost] {
         let throttle = Throttle(rate: rate, concurrency: 64)
-        let arp = arpTable()
+        // The helper's (root) view of the ARP table when available: macOS hides it from apps.
+        let arp = known.flatMap { $0.isEmpty ? nil : $0 } ?? arpTable()
         let all = Array(Set(targets.flatMap(CIDR.hosts)))
         let lock = NSLock()
         var live = Set(all.filter { arp[$0] != nil })

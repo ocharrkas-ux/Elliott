@@ -83,6 +83,10 @@ final class Helper: NSObject, NSXPCListenerDelegate, HelperXPC {
 
     func deletePcap(path: String, reply: @escaping (Bool) -> Void) { reply(recorder.delete(path)) }
 
+    func arpTable(reply: @escaping (Data) -> Void) {
+        reply((try? JSONEncoder().encode(ARPTable.read())) ?? Data("{}".utf8))
+    }
+
     func setNameCapture(_ on: Bool, reply: @escaping (Bool) -> Void) {
         if on { capture.start() } else { capture.stop() }
         reply(capture.isRunning)

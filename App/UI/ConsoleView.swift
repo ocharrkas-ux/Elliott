@@ -571,6 +571,7 @@ struct ProfileDetail: View {
                         row("Protocol", p.key.proto.rawValue.uppercased())
                         row("Hostname", hostnameText(p))
                         row("Remote IPs", p.addresses.joined(separator: "\n"))
+                        if let tls = p.tlsFingerprints, !tls.isEmpty { row("TLS client", tls.joined(separator: "\n")) }
                         row("Connections", "\(p.count)")
                         row("First seen", p.firstSeen.formatted())
                         row("Last seen", p.lastSeen.formatted())

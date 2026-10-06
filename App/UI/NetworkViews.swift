@@ -429,6 +429,7 @@ struct NetworkDetectionsView: View {
                 let rows = model.networkReports(for: node).flatMap { r in r.findings.map { NodeFindingRow(node: r.node.name, f: $0) } }
                     .filter { !openOnly || $0.f.status == .open }.sorted(using: sortOrder)
                 VStack(spacing: 0) {
+                    CorrelationBanner(store: model.securityStore)
                     Toggle("Open only", isOn: $openOnly).padding(.horizontal, 16).padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .trailing)
                     Table(rows, sortOrder: $sortOrder) {
                         TableColumn("Device") { Text($0.node).fontWeight(.semibold) }.width(min: 90, ideal: 130)
@@ -488,5 +489,29 @@ struct NetworkVulnsView: View {
             }
         }
         .navigationTitle("all.vulns")
+    }
+}
+
+/// Threats only visible across devices (same malicious destination, same detection, one device probing another).
+struct CorrelationBanner: View {
+    @ObservedObject var store: SecurityStore
+    var body: some View {
+        if !store.correlations.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Across your devices", systemImage: "point.3.filled.connected.trianglepath.dotted").font(.headline)
+                ForEach(store.correlations, id: \.key) { s in
+                    HStack(alignment: .top) {
+                        SeverityBadge(severity: s.severity)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(s.title).fontWeight(.semibold)
+                            Text(s.detail).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                        }
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.red.opacity(0.08))
+        }
     }
 }

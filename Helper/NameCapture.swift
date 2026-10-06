@@ -10,6 +10,7 @@ enum CaptureLine: Codable {
     case stats(unsolicited: Int)
     case started(uid: UInt32, sandboxed: Bool)
     case conn(ConnObservation)
+    case query(DNSQueryObservation)
     case pktap(active: Bool, kernelFiltered: Bool)
 }
 
@@ -21,6 +22,7 @@ final class NameCapture: @unchecked Sendable {
     private var dns: [DNSObservation] = []
     private var sni: [SNIObservation] = []
     private var conns: [ConnObservation] = []
+    private var queries: [DNSQueryObservation] = []
     private(set) var pktapActive = false
     private var child: Process?
     private var childInterfaces: [String] = []
@@ -52,7 +54,7 @@ final class NameCapture: @unchecked Sendable {
     func stop() {
         let c: Process? = lock.withLock {
             running = false
-            dns.removeAll(); sni.removeAll(); conns.removeAll()
+            dns.removeAll(); sni.removeAll(); conns.removeAll(); queries.removeAll()
             let c = child; child = nil
             return c
         }
@@ -71,10 +73,14 @@ final class NameCapture: @unchecked Sendable {
             let now = Date().timeIntervalSince1970
             dns.removeAll { now - $0.time > 6 * 3600 }
             sni.removeAll { now - $0.time > 15 * 60 }
+            queries.removeAll { now - $0.time > 15 * 60 }
             let d = dns.filter { $0.time > cursor }, s = sni.filter { $0.time > cursor }
+            // A lookup is timestamped when asked, so it can trail the answers that moved the cursor: overlap a little
+            // (the app drops repeats).
+            let q = queries.filter { $0.time > cursor - 15 }
             let newest = max(cursor, d.map(\.time).max() ?? cursor, s.map(\.time).max() ?? cursor)
             return NameBatch(dns: d, sni: s, capturing: running && child != nil, interfaces: childInterfaces, since: since,
-                             cursor: newest, unsolicitedDNS: unsolicited,
+                             cursor: newest, unsolicitedDNS: unsolicited, queries: q,
                              privilegesDropped: childUID.map { $0 != 0 }, sandboxed: childUID == nil ? nil : childSandboxed)
         }
     }
@@ -169,6 +175,9 @@ final class NameCapture: @unchecked Sendable {
                     c.received = max(Date().timeIntervalSince1970, (conns.last?.received ?? 0) + 0.000001)
                     conns.append(c)
                     if conns.count > 20_000 { conns.removeFirst(5_000) }
+                case .query(let q):
+                    queries.append(q)
+                    if queries.count > 20_000 { queries.removeFirst(5_000) }
                 case .pktap(let active, let filtered):
                     pktapActive = active
                     log.notice("connection capture (pktap): \(active ? "on" : "unavailable", privacy: .public)\(active ? (filtered ? ", kernel-filtered" : ", filtered in user space") : "", privacy: .public)")
@@ -293,6 +302,7 @@ enum CaptureChild {
             guard let p = PacketParse.parse(frame: frame, linkType: link) else { continue }
             if p.proto == .udp {
                 for a in dns.observe(p, time: time) ?? [] { out.send(.dns(a)) }
+                if let q = dns.lastQuery { out.send(.query(q)); dns.lastQuery = nil }
                 if dns.unsolicited != reported { reported = dns.unsolicited; out.send(.stats(unsolicited: reported)) }
             } else if let s = tls.feed(p, time: time) {
                 out.send(.sni(s))

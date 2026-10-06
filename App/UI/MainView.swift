@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum MainSection: String, CaseIterable, Identifiable {
-    case console = "connections", detections = "detections", vulns = "vulns", netscan = "net.scan", captures = "pcap", log = "live.log", rules = "rules", firewall = "palo_alto.sync"
+    case console = "connections", detections = "detections", vulns = "vulns", netscan = "net.scan", captures = "pcap", posture = "posture", events = "events", log = "live.log", rules = "rules", firewall = "palo_alto.sync"
     case netOverview = "overview", netDevices = "devices", netConnections = "all.connections", netDetections = "all.detections", netVulns = "all.vulns", netHosts = "all.hosts"
     /// The List tags rows with their id, so the id must be the same type as the selection.
     var id: MainSection { self }
@@ -27,6 +27,8 @@ enum MainSection: String, CaseIterable, Identifiable {
         case .netscan: "dot.radiowaves.left.and.right"
         case .captures: "waveform.path.ecg.rectangle"
         case .netHosts: "server.rack"
+        case .posture: "checkmark.shield"
+        case .events: "doc.text.magnifyingglass"
         }
     }
 }
@@ -82,6 +84,8 @@ struct MainView: View {
             case .netVulns: NetworkVulnsView()
             case .netscan: NetScanView()
             case .captures: CapturesView()
+            case .posture: PostureView(store: model.securityStore)
+            case .events: EventsView()
             case .netHosts: NetworkHostsView()
             }
         }

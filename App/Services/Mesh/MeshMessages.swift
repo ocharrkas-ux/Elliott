@@ -60,6 +60,8 @@ struct NodeReport: Codable, Sendable {
     var componentCount: Int
     var decisionCount: Int
     var scanHosts: [ScannedHost]? = nil
+    /// The node's own IPs (to recognize one device connecting to another).
+    var addresses: [String]? = nil
 }
 
 /// Load and capacity, for deciding where LLM work runs.

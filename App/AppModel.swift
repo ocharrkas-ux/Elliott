@@ -20,6 +20,9 @@ struct AppSettings: Codable, Equatable {
     var captureNames = true
     var mesh = MeshSettings()
     var netscan = NetScanSettings()
+    var detect = DetectSettings()
+    var logging = LoggingSettings()
+    var integrations = IntegrationSettings()
 
     init() {}
 
@@ -40,6 +43,9 @@ struct AppSettings: Codable, Equatable {
         captureNames = try c.decodeIfPresent(Bool.self, forKey: .captureNames) ?? d.captureNames
         mesh = try c.decodeIfPresent(MeshSettings.self, forKey: .mesh) ?? d.mesh
         netscan = try c.decodeIfPresent(NetScanSettings.self, forKey: .netscan) ?? d.netscan
+        detect = try c.decodeIfPresent(DetectSettings.self, forKey: .detect) ?? d.detect
+        logging = try c.decodeIfPresent(LoggingSettings.self, forKey: .logging) ?? d.logging
+        integrations = try c.decodeIfPresent(IntegrationSettings.self, forKey: .integrations) ?? d.integrations
     }
 }
 
@@ -185,6 +191,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var findings: [Finding] = []
     /// Processes live in their own store: they change every few seconds, and only the Processes table shows them.
     let processStore = ProcessStore()
+    /// Behavioral detections, posture, event log and integrations (AppModel+Security.swift).
+    let sec = SecurityState()
+    let securityStore = SecurityStore()
     var processes: [ProcInfo] { processStore.list }
     @Published private(set) var launchItems: [LaunchItem] = []
     @Published private(set) var triagingID: UUID?
@@ -209,7 +218,7 @@ final class AppModel: ObservableObject {
 
     let filter = FilterClient()
     let helper = HelperClient()
-    private let passive = PassiveMonitor()
+    let passive = PassiveMonitor()
     private var analysisQueue: [String] = []
     private var analysisFailures: [String: Int] = [:]
     private var suggestQueue: [String] = []
@@ -231,7 +240,7 @@ final class AppModel: ObservableObject {
     private var reachQueue: [String] = []
     /// Work the user asked for (all that runs in low-power mode).
     private var requestedJobs: Set<String> = []
-    private let jobs = BackgroundJobs()
+    let jobs = BackgroundJobs()
     let names = NameResolver()
     @Published private(set) var nameCapture: (active: Bool, interfaces: [String]) = (false, [])
     @Published private(set) var captureIsolation: (unprivileged: Bool?, sandboxed: Bool?) = (nil, nil)
@@ -252,7 +261,7 @@ final class AppModel: ObservableObject {
     private var saveTask: Task<Void, Never>?
     private var syncTask: Task<Void, Never>?
     private var bag: Set<AnyCancellable> = []
-    private let dir: URL
+    let dir: URL
 
     enum Backend { case filter, packetFilter, none }
     /// The Network Extension filter (per-app, if this build has it) wins; else the pf helper; else observe only.
@@ -327,6 +336,7 @@ final class AppModel: ObservableObject {
         Task { try? await Task.sleep(for: .seconds(20)); await runDueChecks() }
         startNameCapture()
         setUpMesh()
+        setUpSecurity()
 
         if hasFilterExtension { Task { await filter.refresh() } }
         helper.start()
@@ -443,6 +453,7 @@ final class AppModel: ObservableObject {
             return
         }
         names.ingest(batch)
+        securityNames(batch)
         if nameCapture.active != batch.capturing || nameCapture.interfaces != batch.interfaces {
             nameCapture = (batch.capturing, batch.interfaces)
         }
@@ -512,6 +523,7 @@ final class AppModel: ObservableObject {
             if pfLockdown && e.outcome == .pending { heldByPacketFilter(e) }
         }
         if !newIPs.isEmpty { assess(newIPs) }
+        securityIngest(events)
         recent.insert(contentsOf: events.reversed(), at: 0)
         if recent.count > 2000 { recent.removeLast(recent.count - 2000) }
         pumpAnalysis()
@@ -695,6 +707,7 @@ final class AppModel: ObservableObject {
     }
 
     func removeRules(_ ids: Set<UUID>) {
+        auditRules(rules.filter { ids.contains($0.id) }, removed: true, actor: "you")
         rules.removeAll { ids.contains($0.id) }
         rulesChanged()
     }
@@ -750,6 +763,11 @@ final class AppModel: ObservableObject {
     }
 
     func clearLiveLog() { recent.removeAll() }
+
+    func setTLSFingerprints(_ id: String, _ tags: [String]) {
+        guard profiles[id] != nil, profiles[id]?.tlsFingerprints != tags else { return }
+        profiles[id]?.tlsFingerprints = tags
+    }
 
     // MARK: Packet capture
 
@@ -919,8 +937,9 @@ final class AppModel: ObservableObject {
         defer { netScanning = false }
         let ports = Array(Set(NetScanner.defaultPorts + settings.netscan.extraPorts.filter { (1...65535).contains($0) })).sorted()
         let rate = settings.netscan.rate, node = nodeName
+        let arp = await helper.arpTable()
         let hosts = await Task.detached(priority: .utility) { [weak self] in
-            NetScanner.scan(targets: targets, ports: ports, rate: rate, node: node) { msg, frac in
+            NetScanner.scan(targets: targets, ports: ports, rate: rate, node: node, arp: arp) { msg, frac in
                 Task { @MainActor in self?.netScanProgress = (msg, frac) }
             }
         }.value
@@ -1027,6 +1046,8 @@ final class AppModel: ObservableObject {
     /// Shared rules from the network replace or remove local ones; local addresses learned for a rule are kept.
     private func applyShared(_ list: [SharedRule]) {
         for s in list {
+            let who = mesh?.members[s.origin]?.name ?? "another node"
+            auditRules([s.rule], removed: s.deleted, actor: "network: \(who)")
             let local = rules.first { $0.id == s.rule.id }
             rules.removeAll { $0.id == s.rule.id }
             if !s.deleted {
@@ -1048,7 +1069,7 @@ final class AppModel: ObservableObject {
                           enforcement: backend == .filter ? "per-app filter" : backend == .packetFilter ? "packet filter" : "observe only",
                           lockdown: settings.lockdown, profiles: Array(recentProfiles), findings: shownFindings,
                           vulnFindings: openVulns, componentCount: components.count, decisionCount: decisions.count,
-                          scanHosts: scanHosts)
+                          scanHosts: scanHosts, addresses: Self.localAddresses())
     }
 
     private var statusCache: (NodeStatus, Date)?
@@ -1196,7 +1217,11 @@ final class AppModel: ObservableObject {
 
     private func approvalArrived(_ r: ApprovalRequest) {
         if profiles[r.key.id] == nil { ingest([r.event]) }
-        if let i = approvals.firstIndex(where: { $0.id == r.id }) { approvals[i] = r } else { approvals.append(r) }
+        if let i = approvals.firstIndex(where: { $0.id == r.id }) { approvals[i] = r } else {
+            approvals.append(r)
+            logEvent(.alert, .medium, "Lockdown: \(r.event.processName) → \(r.event.remoteHostname ?? r.event.remoteAddress):\(r.event.remotePort) is waiting for approval",
+                     app: r.event.processName)
+        }
         // Describe it first: the user is waiting.
         analysisQueue.removeAll { $0 == r.key.id }
         if profiles[r.key.id]?.analysis == nil { analysisQueue.insert(r.key.id, at: 0) }
@@ -1242,6 +1267,7 @@ final class AppModel: ObservableObject {
         var oldIntel = old.intel, newIntel = settings.intel
         oldIntel.lastRefresh = nil; newIntel.lastRefresh = nil
         if newIntel != oldIntel { Task { await refreshIntel() } }
+        if settings.integrations != old.integrations { integrationsChanged() }
         if settings.edr != old.edr {
             edr.minerDetection = settings.edr.minerDetection
             if settings.edr.enabled { edr.start() } else { edr.stop() }
@@ -1410,6 +1436,7 @@ final class AppModel: ObservableObject {
     }
 
     private func record(_ d: Decision) {
+        auditDecision(d)
         decisions.append(d)
         if decisions.count > 5000 { decisions.removeFirst(decisions.count - 5000) }
         // A decided profile no longer needs a suggestion.
@@ -1641,6 +1668,7 @@ final class AppModel: ObservableObject {
                 f.evidence.insert("pid \(p.pid), started \(p.start.formatted(date: .abbreviated, time: .standard))", at: 0)
             }
             findings.append(f)
+            findingEvent(f)
             if let path = f.path { touchedPaths.insert(path) }
             if f.severity >= .medium { triageQueue.append(f.id) }
             if f.severity >= settings.edr.notifyAt { notify(f) }
@@ -1852,6 +1880,14 @@ final class AppModel: ObservableObject {
     }
 
     private func notifyVulns(new: [VulnFinding], exploited: [VulnFinding]) {
+        for f in new.prefix(200) {
+            logEvent(.vulnerability, f.severity, "\(f.component.display): \(f.vuln.cve ?? f.vuln.id) (CVSS \(String(format: "%.1f", f.vuln.score)))",
+                     app: f.component.name, detail: ["id": f.vuln.id, "location": f.component.location, "kev": f.kev ? "yes" : "no"])
+        }
+        for f in exploited.prefix(50) {
+            logEvent(.vulnerability, .critical, "Actively exploited: \(f.component.display) \(f.vuln.cve ?? f.vuln.id)", app: f.component.name,
+                     detail: ["id": f.vuln.id, "location": f.component.location, "kev": "yes"])
+        }
         guard settings.vuln.notify else { return }
         func list(_ fs: [VulnFinding]) -> String {
             let parts = fs.sorted { $0.priority > $1.priority }.prefix(4).map { "\($0.component.name) (\($0.vuln.cve ?? $0.vuln.id))" }
@@ -1870,7 +1906,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func notify(id: String, title: String, body: String, critical: Bool) {
+    func notify(id: String, title: String, body: String, critical: Bool) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -2107,6 +2143,10 @@ final class AppModel: ObservableObject {
         var scanHosts: [ScannedHost]?
         var suppressedFindingKeys: [String]? = nil
         var wireCursor: Double? = nil
+        var volume: VolumeBaseline? = nil
+        var lanKnown: [String]? = nil
+        var posture: PostureReport? = nil
+        var reportedCorrelations: [String]? = nil
     }
 
     private var stateURL: URL { dir.appendingPathComponent("state.json") }
@@ -2136,6 +2176,10 @@ final class AppModel: ObservableObject {
         findings = s.findings ?? []
         suppressedFindingKeys = Set(s.suppressedFindingKeys ?? [])
         wireCursor = s.wireCursor ?? 0
+        if let v = s.volume { sec.volume = v }
+        sec.lanKnown = Set(s.lanKnown ?? []); sec.lanBaselined = !(s.lanKnown ?? []).isEmpty
+        securityStore.posture = s.posture
+        sec.reportedCorrelations = Set(s.reportedCorrelations ?? [])
         edrBaseline = s.edrBaseline ?? []
         vulnFindings = s.vulnFindings ?? []
         components = s.components ?? []
@@ -2212,7 +2256,7 @@ final class AppModel: ObservableObject {
         rulesChanged()
     }
 
-    private func scheduleSave() {
+    func scheduleSave() {
         guard !Self.isTestHost else { return }
         saveTask?.cancel()
         saveTask = Task {
@@ -2225,7 +2269,8 @@ final class AppModel: ObservableObject {
                               newVulnIDs: Array(newVulnIDs),
                               membership: mesh?.membership ?? savedMembership, sharedRules: mesh?.allSharedRules ?? savedSharedRules,
                               scanHosts: scanHosts, suppressedFindingKeys: Array(suppressedFindingKeys),
-                              wireCursor: wireCursor)
+                              wireCursor: wireCursor, volume: sec.volume, lanKnown: Array(sec.lanKnown),
+                              posture: securityStore.posture, reportedCorrelations: Array(sec.reportedCorrelations))
             guard let data = try? JSONEncoder.elliott.encode(saved) else { return }
             let key = signingKey ?? StateGuard.existingKey() ?? StateGuard.createKey()
             signingKey = key

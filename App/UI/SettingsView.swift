@@ -1,11 +1,14 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @EnvironmentObject var model: AppModel
     var body: some View {
         TabView {
             FilterSettings().tabItem { Label("Filter", systemImage: "shield") }
             LLMSettingsView().tabItem { Label("Local LLM", systemImage: "cpu") }
             EDRSettingsView().tabItem { Label("EDR", systemImage: "exclamationmark.shield") }
+            DetectionSettingsView(store: model.securityStore).tabItem { Label("Detection", systemImage: "waveform.path.badge.exclamationmark") }
+            IntegrationsSettingsView(store: model.securityStore).tabItem { Label("Integrations", systemImage: "arrow.up.forward.app") }
             VulnSettingsView().tabItem { Label("Vulnerabilities", systemImage: "ladybug") }
             IntelSettingsView().tabItem { Label("Threat Intel", systemImage: "globe.badge.chevron.backward") }
             PaloAltoSettings().tabItem { Label("Palo Alto", systemImage: "flame") }
