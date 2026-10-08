@@ -13,3 +13,20 @@ xcuserdata/
 
 # Packaged builds
 dist/
+
+# Never commit secrets or local data
+*.p12
+*.pem
+*.key
+*.cer
+*.mobileprovision
+*.provisionprofile
+.env
+.env.*
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+state*.json
+*.pcap
+*.pcapng
+Captures/
